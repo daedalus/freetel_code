@@ -36,13 +36,14 @@
 
 int g_in, g_out;
 
-// Global Codec2 & modem states - just one reqd for tx & rx
+// freedv states
 int                 g_Nc;
 int                 g_mode;
 struct freedv      *g_pfreedv;
 struct MODEM_STATS  g_stats;
 float               g_pwr_scale;
 int                 g_clip;
+int                 g_freedv_verbose;
 
 // test Frames
 int                 g_testFrames;
@@ -75,6 +76,8 @@ struct FIFO         *g_rxDataOutFifo;
 // tx/rx processing states
 int                 g_State, g_prev_State, g_interleaverSyncState;
 paCallBackData     *g_rxUserdata;
+int                 g_dump_timing;
+int                 g_dump_fifo_state;
 
 // FIFOs used for plotting waveforms
 struct FIFO        *g_plotDemodInFifo;
@@ -98,6 +101,8 @@ int                 g_infifo2_full;
 int                 g_outfifo2_empty;
 int                 g_PAstatus1[4];
 int                 g_PAstatus2[4];
+int                 g_PAframesPerBuffer1;
+int                 g_PAframesPerBuffer2;
 
 // playing and recording from sound files
 
@@ -414,7 +419,8 @@ MainFrame::MainFrame(wxString plugInName, wxWindow *parent) : TopFrame(plugInNam
         m_panelTestFrameErrorsHist->setLogY(1);
     }
 
-    wxGetApp().m_framesPerBuffer = pConfig->Read(wxT("/Audio/framesPerBuffer"), PA_FPB);
+    wxGetApp().m_framesPerBuffer = pConfig->Read(wxT("/Audio/framesPerBuffer"), (int)PA_FPB);
+    wxGetApp().m_fifoSize_ms = pConfig->Read(wxT("/Audio/fifoSize_ms"), (int)FIFO_SIZE);
 
     g_soundCard1InDeviceNum  = pConfig->Read(wxT("/Audio/soundCard1InDeviceNum"),         -1);
     g_soundCard1OutDeviceNum = pConfig->Read(wxT("/Audio/soundCard1OutDeviceNum"),        -1);
@@ -517,6 +523,7 @@ MainFrame::MainFrame(wxString plugInName, wxWindow *parent) : TopFrame(plugInNam
     wxGetApp().m_udp_port = (int)pConfig->Read(wxT("/UDP/port"), 3000);
 
     wxGetApp().m_FreeDV700txClip = (float)pConfig->Read(wxT("/FreeDV700/txClip"), t);
+    wxGetApp().m_FreeDV700txBPF = (float)pConfig->Read(wxT("/FreeDV700/txBPF"), t);
     wxGetApp().m_FreeDV700Combine = 1;
     wxGetApp().m_FreeDV700Interleave = (int)pConfig->Read(wxT("/FreeDV700/interleave"), 1);
     wxGetApp().m_FreeDV700ManualUnSync = (float)pConfig->Read(wxT("/FreeDV700/manualUnSync"), f);
@@ -652,12 +659,18 @@ MainFrame::MainFrame(wxString plugInName, wxWindow *parent) : TopFrame(plugInNam
     }
 #endif
 
-    #define FTEST
+    //#define FTEST
     #ifdef FTEST
     ftest = fopen("ftest.raw", "wb");
     assert(ftest != NULL);
     #endif
 
+    /* experimental checkbox control of thread priority, used
+       to helpo debug 700D windows sound break up */
+    
+    wxGetApp().m_txRxThreadHighPriority = true;
+    g_dump_timing = g_dump_fifo_state = g_freedv_verbose = 0;
+    
     UDPInit();
 }
 
@@ -720,6 +733,7 @@ MainFrame::~MainFrame()
         pConfig->Write(wxT("/Audio/SquelchLevel"),          (int)(g_SquelchLevel*2.0));
 
         pConfig->Write(wxT("/Audio/framesPerBuffer"),       wxGetApp().m_framesPerBuffer);
+        pConfig->Write(wxT("/Audio/fifoSize_ms"),              wxGetApp().m_fifoSize_ms);
 
         pConfig->Write(wxT("/Audio/soundCard1InDeviceNum"),   g_soundCard1InDeviceNum);
         pConfig->Write(wxT("/Audio/soundCard1OutDeviceNum"),  g_soundCard1OutDeviceNum);
@@ -1150,12 +1164,12 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
     g_rxUserdata->micInEQEnable = wxGetApp().m_MicInEQEnable;
     g_rxUserdata->spkOutEQEnable = wxGetApp().m_SpkOutEQEnable;
 
-
     if (g_mode != -1)  {
 
-        // Run time update of FreeDV 700 tx clipper
+        // Run time update of FreeDV 700 tx clipper and 700D BPF
 
         freedv_set_clip(g_pfreedv, (int)wxGetApp().m_FreeDV700txClip);
+        freedv_set_tx_bpf(g_pfreedv, (int)wxGetApp().m_FreeDV700txBPF);
         
         // Test Frame Bit Error Updates ------------------------------------
 
@@ -1173,16 +1187,16 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
         freedv_set_test_frames_diversity(g_pfreedv, wxGetApp().m_FreeDV700Combine);
         g_channel_noise =  wxGetApp().m_channel_noise;
 
+        // update stats on main page
+
+        char bits[80], errors[80], ber[80], resyncs[80];
+        sprintf(bits, "Bits: %d", freedv_get_total_bits(g_pfreedv)); wxString bits_string(bits); m_textBits->SetLabel(bits_string);
+        sprintf(errors, "Errs: %d", freedv_get_total_bit_errors(g_pfreedv)); wxString errors_string(errors); m_textErrors->SetLabel(errors_string);
+        float b = (float)freedv_get_total_bit_errors(g_pfreedv)/(1E-6+freedv_get_total_bits(g_pfreedv));
+        sprintf(ber, "BER: %4.3f", b); wxString ber_string(ber); m_textBER->SetLabel(ber_string);
+        sprintf(resyncs, "Resyncs: %d", g_resyncs); wxString resyncs_string(resyncs); m_textResyncs->SetLabel(resyncs_string);
+
         if (g_State) {
-            char bits[80], errors[80], ber[80], resyncs[80];
-
-            // update stats on main page
-
-            sprintf(bits, "Bits: %d", freedv_get_total_bits(g_pfreedv)); wxString bits_string(bits); m_textBits->SetLabel(bits_string);
-            sprintf(errors, "Errs: %d", freedv_get_total_bit_errors(g_pfreedv)); wxString errors_string(errors); m_textErrors->SetLabel(errors_string);
-            float b = (float)freedv_get_total_bit_errors(g_pfreedv)/(1E-6+freedv_get_total_bits(g_pfreedv));
-            sprintf(ber, "BER: %4.3f", b); wxString ber_string(ber); m_textBER->SetLabel(ber_string);
-            sprintf(resyncs, "Resyncs: %d", g_resyncs); wxString resyncs_string(resyncs); m_textResyncs->SetLabel(resyncs_string);
 
             // update error pattern plots if supported
 
@@ -1312,6 +1326,10 @@ void MainFrame::OnTimer(wxTimerEvent &evt)
     // Voice Keyer state machine
 
     VoiceKeyerProcessEvent(VK_DT);
+
+    // Detect Sync state machine
+
+    DetectSyncProcessEvent();
 }
 #endif
 
@@ -1477,12 +1495,23 @@ void MainFrame::togglePTT(void) {
     {
         // tx-> rx transition, swap to the page we were on for last rx
         m_auiNbookCtrl->ChangeSelection(wxGetApp().m_rxNbookCtrl);
+
+        // enable sync text
+
+        m_textSync->Enable();
+        m_textInterleaverSync->Enable();
     }
     else
     {
         // rx-> tx transition, swap to Mic In page to monitor speech
         wxGetApp().m_rxNbookCtrl = m_auiNbookCtrl->GetSelection();
         m_auiNbookCtrl->ChangeSelection(m_auiNbookCtrl->GetPageIndex((wxWindow *)m_panelSpeechIn));
+
+        // disable sync text
+
+        m_textSync->Disable();
+        m_textInterleaverSync->Disable();
+        
 #ifdef __UDP_EXPERIMENTAL__
         char e[80]; sprintf(e,"ptt"); processTxtEvent(e);
 #endif
@@ -1513,6 +1542,7 @@ void MainFrame::togglePTT(void) {
     m_maxLevel = 0;
     m_textLevel->SetLabel(wxT(""));
     m_gaugeLevel->SetValue(0);
+           
 }
 
 /*
@@ -1681,6 +1711,65 @@ void MainFrame::VoiceKeyerProcessEvent(int vk_event) {
     //if ((vk_event != VK_DT) || (vk_state != next_state))
     //    fprintf(stderr, "VoiceKeyerProcessEvent: vk_state: %d vk_event: %d next_state: %d  vk_repeat_counter: %d\n", vk_state, vk_event, next_state, vk_repeat_counter);
     vk_state = next_state;
+}
+
+
+// State machine to detect sync and send a UDP message
+
+void MainFrame::DetectSyncProcessEvent(void) {
+    int next_state = ds_state;
+
+    switch(ds_state) {
+
+    case DS_IDLE:
+        if (freedv_get_sync(g_pfreedv) == 1) {
+            next_state = DS_SYNC_WAIT;
+            ds_rx_time = 0;
+        }
+        break;
+
+    case DS_SYNC_WAIT:
+
+        // In this state we wait fo a few seconds of valid sync, then
+        // send UDP message
+
+        if (freedv_get_sync(g_pfreedv) == 0) {
+            next_state = DS_IDLE;
+        } else {
+            ds_rx_time += DT;
+        }
+
+        if (ds_rx_time >= DS_SYNC_WAIT_TIME) {
+            char s[100]; sprintf(s, "rx sync");
+            if (wxGetApp().m_udp_enable) {
+                UDPSend(wxGetApp().m_udp_port, s, strlen(s)+1);
+            }
+            ds_rx_time = 0;
+            next_state = DS_UNSYNC_WAIT;
+        }
+        break;
+
+    case DS_UNSYNC_WAIT:
+
+        // In this state we wait for sync to end
+
+        if (freedv_get_sync(g_pfreedv) == 0) {
+            ds_rx_time += DT;
+            if (ds_rx_time >= DS_SYNC_WAIT_TIME) {
+                next_state = DS_IDLE;
+            }
+        } else {
+            ds_rx_time = 0;
+        }
+        break;
+       
+    default:
+        // catch anything we missed
+
+        next_state = DS_IDLE;
+    }
+
+    ds_state = next_state;
 }
 
 
@@ -2383,6 +2472,8 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent& event)
                 g_pfreedv = freedv_open(g_mode);
                 m_textInterleaverSync->SetLabel("");
            }
+
+            freedv_set_verbose(g_pfreedv, g_freedv_verbose);
             
             freedv_set_callback_txt(g_pfreedv, &my_put_next_rx_char, &my_get_next_tx_char, NULL);
 
@@ -2398,7 +2489,7 @@ void MainFrame::OnTogBtnOnOff(wxCommandEvent& event)
 
             assert(g_pfreedv != NULL);
         
-            // init Codec 2 LPC Post Filter
+            // init Codec 2 LPC Post Filter (FreeDV 1600)
 
             codec2_set_lpc_post_filter(freedv_get_codec2(g_pfreedv),
                                        wxGetApp().m_codec2LPCPostFilterEnable,
@@ -2655,14 +2746,20 @@ void  MainFrame::initPortAudioDevice(PortAudioWrap *pa, int inDevice, int outDev
     // init params that affect input and output
 
     /*
+      DR 2013:
+
       On Linux, setting this to wxGetApp().m_framesPerBuffer caused
       intermittant break up on the audio from my IC7200 on Ubuntu 14.
       After a day of bug hunting I found that 0, as recommended by the
       PortAudio documentation, fixed the problem.
+
+      DR 2018:
+
+      During 700D testing some break up in from radio audio, so made
+      this adjustable again.
     */
 
-    //pa->setFramesPerBuffer(wxGetApp().m_framesPerBuffer);
-    pa->setFramesPerBuffer(0);
+    pa->setFramesPerBuffer(wxGetApp().m_framesPerBuffer);
 
     pa->setSampleRate(sampleRate);
     pa->setStreamFlags(paClipOff);
@@ -2825,23 +2922,46 @@ void MainFrame::startRxStream()
         g_rxUserdata->insrcsf = src_new(SRC_SINC_FASTEST, 1, &src_error);
         assert(g_rxUserdata->insrcsf != NULL);
 
-        // create FIFOs used to interface between different buffer sizes
+        // create FIFOs used to interface between Port Audio and txRx
+        // prcoessing loop, which iterates about once every 20ms.
+        // Sample rate conversion, stats for spectral plots, and
+        // transmit processng are all performed in the txRxProcessing
+        // loop.
 
-        g_rxUserdata->infifo1 = fifo_create(10*N48);
-        g_rxUserdata->outfifo1 = fifo_create(10*N48);
-        g_rxUserdata->outfifo2 = fifo_create(10*N48);
-        g_rxUserdata->infifo2 = fifo_create(10*N48);
-        //fprintf(stderr, "N48: %d 10*N48: %d\n", N48, 10*N48);
+        int soundCard1FifoSizeSamples = wxGetApp().m_fifoSize_ms*g_soundCard1SampleRate/1000;
+        int soundCard2FifoSizeSamples = wxGetApp().m_fifoSize_ms*g_soundCard2SampleRate/1000;
+        
+        g_rxUserdata->infifo1 = fifo_create(soundCard1FifoSizeSamples);
+        g_rxUserdata->outfifo1 = fifo_create(soundCard1FifoSizeSamples);
+        g_rxUserdata->outfifo2 = fifo_create(soundCard2FifoSizeSamples);
+        g_rxUserdata->infifo2 = fifo_create(soundCard2FifoSizeSamples);
+
+        fprintf(stderr, "fifoSize_ms: %d infifo1/outfilo1: %d infifo2/outfilo2: %d\n",
+                wxGetApp().m_fifoSize_ms, soundCard1FifoSizeSamples, soundCard2FifoSizeSamples);
+
+        // reset debug stats for FIFOs
+        
         g_infifo1_full = g_outfifo1_empty = g_infifo2_full = g_outfifo2_empty = 0;
         g_infifo1_full = g_outfifo1_empty = g_infifo2_full = g_outfifo2_empty = 0;
         for (int i=0; i<4; i++) {
             g_PAstatus1[i] = g_PAstatus2[i] = 0;
         }        
-        /* TODO: might be able to tune these on a per waveform basis */
-        
-        g_rxUserdata->rxinfifo = fifo_create(20 * N8);
-        g_rxUserdata->rxoutfifo = fifo_create(20 * N8);
 
+        // These FIFOs interface between the 20ms txRxProcessing()
+        // loop and the demodulator, which requires a variable number
+        // of input samples to adjust for timing clock differences
+        // between remote tx and rx.  These FIFOs also help with the
+        // different processing block size of different FreeDV modes.
+
+        // TODO: might be able to tune these on a per waveform basis, or refactor
+        // to a neater design with less layers of FIFOs
+        
+        int rxFifoSizeSamples = wxGetApp().m_fifoSize_ms*freedv_get_modem_sample_rate(g_pfreedv)/1000;
+        g_rxUserdata->rxinfifo = fifo_create(rxFifoSizeSamples);
+        g_rxUserdata->rxoutfifo = fifo_create(rxFifoSizeSamples);
+
+        fprintf(stderr, "rxFifoSizeSamples: %d\n",  rxFifoSizeSamples);
+        
         // Init Equaliser Filters ------------------------------------------------------
 
         m_newMicInFilter = m_newSpkOutFilter = true;
@@ -3060,7 +3180,9 @@ void MainFrame::startRxStream()
             wxLogError(wxT("Can't create thread!"));
         }
 
-        m_txRxThread->SetPriority(WXTHREAD_MAX_PRIORITY);
+        if (wxGetApp().m_txRxThreadHighPriority) {
+            m_txRxThread->SetPriority(WXTHREAD_MAX_PRIORITY);
+        }
 
         if ( m_txRxThread->Run() != wxTHREAD_NO_ERROR )
         {
@@ -3301,11 +3423,12 @@ void resample_for_plot(struct FIFO *plotFifo, short buf[], int length, int fs)
 
 
 //---------------------------------------------------------------------------------------------
-// Main real time procesing for tx and rx of FreeDV signals
+// Main real time procesing for tx and rx of FreeDV signals, run in its own thread
 //---------------------------------------------------------------------------------------------
 
 void txRxProcessing()
 {
+    wxStopWatch sw;
 
     paCallBackData  *cbData = g_rxUserdata;
 
@@ -3503,6 +3626,13 @@ void txRxProcessing()
     if ((g_mode != -1) && ((g_nSoundCards == 2) && ((g_half_duplex && g_tx) || !g_half_duplex))) {
         int ret;
 
+	if (g_dump_fifo_state) {
+	  // just dump outfifo1 state atm as that is causing problems with 700D
+	  // If this drops to zero we have a problem as we will run out of output samples
+	  // to send to the sound driver via PortAudio
+	  fprintf(stderr, "%6d", fifo_used(cbData->outfifo1));
+	}
+
         // Make sure we have a few frames of modulator output
         // samples.  This also locks the modulator to the sample rate
         // of sound card 1.  We want to make sure that modulator
@@ -3520,7 +3650,7 @@ void txRxProcessing()
             assert(nsam_in_48 < 10*N48);
 
             // infifo2 is written to by another sound card so it may
-            // over or underflow, but we don't realy care.  It will
+            // over or underflow, but we don't really care.  It will
             // just result in a short interruption in audio being fed
             // to codec2_enc, possibly making a click every now and
             // again in the decoded audio at the other end.
@@ -3619,6 +3749,10 @@ void txRxProcessing()
    
     //fprintf(g_logfile, "  end infifo1: %5d outfifo2: %5d\n", fifo_used(cbData->infifo1), fifo_used(cbData->outfifo2));
 
+    if (g_dump_timing) {
+        fprintf(stderr, "%4ld", sw.Time());
+    }
+
 }
 
 //----------------------------------------------------------------
@@ -3699,6 +3833,9 @@ void per_frame_rx_processing(
             }
 
             freq_shift_coh(rx_fdm_offset, rx_fdm, g_RxFreqOffsetHz, freedv_get_modem_sample_rate(g_pfreedv), &g_RxFreqOffsetPhaseRect, nin);
+            if (g_dump_timing) {
+                fprintf(stderr,"  rx");
+            }
             nout = freedv_comprx(g_pfreedv, output_buf, rx_fdm_offset);
             //kprintf("nout %d outbuf_buf[0]: %d\n", nout, output_buf[0]);
             fifo_write(output_fifo, output_buf, nout);
@@ -3777,7 +3914,7 @@ int MainFrame::rxCallback(
         g_PAstatus1[3]++;
     }
    
-    wxMutexLocker lock(g_mutexProtectingCallbackData);
+    g_PAframesPerBuffer1 = framesPerBuffer;
 
     //
     //  RX side processing --------------------------------------------
@@ -3860,12 +3997,12 @@ int MainFrame::txCallback(
         g_PAstatus2[3]++;
     }
     
-    wxMutexLocker lock(g_mutexProtectingCallbackData);
+    g_PAframesPerBuffer2 = framesPerBuffer;
 
     // assemble a mono buffer and write to FIFO
 
     assert(framesPerBuffer < MAX_FPB);
-
+    
     if (rptr) {
         for(i = 0; i < framesPerBuffer; i++, rptr += cbData->inputChannels2)
             indata[i] = rptr[0];                        

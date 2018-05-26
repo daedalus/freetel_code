@@ -109,6 +109,7 @@ class OptionsDlg : public wxDialog
         wxTextCtrl   *m_txtToneAmplitude;
 
         wxCheckBox   *m_ckboxFreeDV700txClip;
+        wxCheckBox   *m_ckboxFreeDV700txBPF;
         wxCheckBox   *m_ckboxFreeDV700Combine;
         wxTextCtrl   *m_txtInterleave;
         wxCheckBox   *m_ckboxFreeDV700ManualUnSync;
@@ -133,7 +134,13 @@ class OptionsDlg : public wxDialog
         wxStaticText  *m_textFifos;
         wxStaticText  *m_textPA1;
         wxStaticText  *m_textPA2;
-
+        wxTextCtrl    *m_txtCtrlframesPerBuffer;
+        wxTextCtrl    *m_txtCtrlFifoSize;
+        wxCheckBox    *m_ckboxTxRxThreadPriority;
+        wxCheckBox    *m_ckboxTxRxDumpTiming;
+        wxCheckBox    *m_ckboxTxRxDumpFifoState;
+        wxCheckBox    *m_ckboxFreeDVAPIVerbose;
+        
         wxButton*     m_sdbSizer5OK;
         wxButton*     m_sdbSizer5Cancel;
         wxButton*     m_sdbSizer5Apply;

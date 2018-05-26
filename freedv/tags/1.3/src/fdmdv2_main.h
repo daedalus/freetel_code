@@ -115,7 +115,7 @@ extern int                 g_soundCard2InDeviceNum;
 extern int                 g_soundCard2OutDeviceNum;
 extern int                 g_soundCard2SampleRate;
 
-// Voice Keyer Constants
+// Voice Keyer Constants 
 
 #define VK_SYNC_WAIT_TIME 5.0
 
@@ -133,6 +133,13 @@ extern int                 g_soundCard2SampleRate;
 #define VK_PLAY_FINISHED 2
 #define VK_DT            3
 #define VK_SYNC          4
+
+// "Detect Sync" state machine states and constants
+
+#define DS_IDLE           0
+#define DS_SYNC_WAIT      1
+#define DS_UNSYNC_WAIT    2
+#define DS_SYNC_WAIT_TIME 5.0
 
 class MainFrame;
 
@@ -261,6 +268,7 @@ class MainApp : public wxApp
         wxRect              m_rTopWindow;
 
         int                 m_framesPerBuffer;
+        int                 m_fifoSize_ms;
 
         bool                loadConfig();
         bool                saveConfig();
@@ -293,6 +301,7 @@ class MainApp : public wxApp
         // 700 options
 
         bool       m_FreeDV700txClip;
+        bool       m_FreeDV700txBPF;
         bool       m_FreeDV700Combine;
         int        m_FreeDV700Interleave;
         bool       m_FreeDV700ManualUnSync;
@@ -315,6 +324,11 @@ class MainApp : public wxApp
         // Windows debug console
 
         bool       m_debug_console;
+        
+        // debugging 700D audio break up
+        
+        bool       m_txRxThreadHighPriority;
+        
     protected:
 };
 
@@ -439,7 +453,7 @@ class MainFrame : public TopFrame
 
         PaError                 m_rxErr;
         PaError                 m_txErr;
-        
+
         txRxThread*             m_txRxThread;
 
         bool                    OpenHamlibRig();
@@ -489,8 +503,16 @@ class MainFrame : public TopFrame
     int                     PollUDP();
     bool                    m_schedule_restore;
 
+    // Voice Keyer state machine
+    
     int                     vk_state;
     void VoiceKeyerProcessEvent(int vk_event);
+
+    // Detect Sync state machine
+    
+    int                     ds_state;
+    float                   ds_rx_time;
+    void DetectSyncProcessEvent(void);
 
     protected:
 

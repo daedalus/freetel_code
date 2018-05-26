@@ -32,7 +32,12 @@ extern int                 g_infifo2_full;
 extern int                 g_outfifo2_empty;
 extern int                 g_PAstatus1[4];
 extern int                 g_PAstatus2[4];
+extern int                 g_PAframesPerBuffer1;
+extern int                 g_PAframesPerBuffer2;
 extern wxDatagramSocket    *g_sock;
+extern int                 g_dump_timing;
+extern int                 g_dump_fifo_state;
+extern int                 g_freedv_verbose;
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=--=-=-=-=
 // Class OptionsDlg
@@ -98,13 +103,12 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
 
     m_ckboxFreeDV700txClip = new wxCheckBox(this, wxID_ANY, _("Clipping"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbSizer_freedv700->Add(m_ckboxFreeDV700txClip, 0, wxALIGN_LEFT, 0);
-    m_ckboxFreeDV700Combine = new wxCheckBox(this, wxID_ANY, _("700C Diversity Combine for plots   700D Interleaver:"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    m_ckboxFreeDV700Combine = new wxCheckBox(this, wxID_ANY, _("700C Diversity Combine  700D Interleaver:"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbSizer_freedv700->Add(m_ckboxFreeDV700Combine, 0, wxALIGN_LEFT, 0);
-
-    //wxStaticText *m_staticTexttb = new wxStaticText(this, wxID_ANY, _("   700D Interleave: "), wxDefaultPosition, wxDefaultSize, 0);
-    //sbSizer_freedv700->Add(m_staticTexttb, 0, wxALIGN_CENTRE_VERTICAL, 5);    
     m_txtInterleave = new wxTextCtrl(this, wxID_ANY,  wxString("1"), wxDefaultPosition, wxSize(30,-1), 0, wxTextValidator(wxFILTER_DIGITS));
     sbSizer_freedv700->Add(m_txtInterleave, 0, wxALIGN_CENTRE_VERTICAL, 0);
+    m_ckboxFreeDV700txBPF = new wxCheckBox(this, wxID_ANY, _(" 700D Tx Band Pass Filter"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    sbSizer_freedv700->Add(m_ckboxFreeDV700txBPF, 0, wxALIGN_LEFT, 0);
 
     m_ckboxFreeDV700ManualUnSync = new wxCheckBox(this, wxID_ANY, _("700D Manual UnSync"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
     sbSizer_freedv700->Add(m_ckboxFreeDV700ManualUnSync, 0, wxALIGN_LEFT, 0);
@@ -283,20 +287,55 @@ OptionsDlg::OptionsDlg(wxWindow* parent, wxWindowID id, const wxString& title, c
     // FIFO and PortAudio under/overflow counters used for debug
     //----------------------------------------------------------
 
-    wxStaticBoxSizer* sbSizer_fifo;
     wxStaticBox* sb_fifo = new wxStaticBox(this, wxID_ANY, _("Debug: FIFO and PortAudio Under/Over Flow Counters"));
-    sbSizer_fifo = new wxStaticBoxSizer(sb_fifo, wxVERTICAL);
+    wxStaticBoxSizer* sbSizer_fifo = new wxStaticBoxSizer(sb_fifo, wxVERTICAL);
 
+    wxStaticBox* sb_fifo1 = new wxStaticBox(this, wxID_ANY, _(""));
+    wxStaticBoxSizer* sbSizer_fifo1 = new wxStaticBoxSizer(sb_fifo1, wxHORIZONTAL);
+
+    // first line
+    
+    wxStaticText *m_staticTextPA1 = new wxStaticText(this, wxID_ANY, _("   PortAudio framesPerBuffer:"), wxDefaultPosition, wxDefaultSize, 0);
+    sbSizer_fifo1->Add(m_staticTextPA1, 0, wxALIGN_CENTER_VERTICAL , 5);
+    m_txtCtrlframesPerBuffer = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(40,-1), 0);
+    sbSizer_fifo1->Add(m_txtCtrlframesPerBuffer, 0, 0, 5);
+    wxStaticText *m_staticTextFifo1 = new wxStaticText(this, wxID_ANY, _("   Fifo Size (ms):"), wxDefaultPosition, wxDefaultSize, 0);
+    sbSizer_fifo1->Add(m_staticTextFifo1, 0, wxALIGN_CENTER_VERTICAL , 5);
+    m_txtCtrlFifoSize = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(40,-1), 0);
+    sbSizer_fifo1->Add(m_txtCtrlFifoSize, 0, 0, 5);
+
+    sbSizer_fifo->Add(sbSizer_fifo1, 0,  wxALIGN_LEFT, 5);
+
+    // 2nd line
+    
+    wxStaticBox* sb_fifo2 = new wxStaticBox(this, wxID_ANY, _(""));
+    wxStaticBoxSizer* sbSizer_fifo2 = new wxStaticBoxSizer(sb_fifo2, wxHORIZONTAL);
+
+    m_ckboxTxRxThreadPriority = new wxCheckBox(this, wxID_ANY, _("  txRxThreadPriority"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    sbSizer_fifo2->Add(m_ckboxTxRxThreadPriority, 0, wxALIGN_LEFT, 0);
+    m_ckboxTxRxDumpTiming = new wxCheckBox(this, wxID_ANY, _("  txRxDumpTiming"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    sbSizer_fifo2->Add(m_ckboxTxRxDumpTiming, 0, wxALIGN_LEFT, 0);
+    m_ckboxTxRxDumpFifoState = new wxCheckBox(this, wxID_ANY, _("  txRxDumpFifoState"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    sbSizer_fifo2->Add(m_ckboxTxRxDumpFifoState, 0, wxALIGN_LEFT, 0);   
+    m_ckboxFreeDVAPIVerbose = new wxCheckBox(this, wxID_ANY, _("  FreedvAPiVerbose"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE);
+    sbSizer_fifo2->Add(m_ckboxFreeDVAPIVerbose, 0, wxALIGN_LEFT, 0);   
+
+    sbSizer_fifo->Add(sbSizer_fifo2, 0,  wxALIGN_LEFT, 5);
+    
+    // Reset stats button
+    
     m_BtnFifoReset = new wxButton(this, wxID_ANY, _("Reset"), wxDefaultPosition, wxDefaultSize, 0);
     sbSizer_fifo->Add(m_BtnFifoReset, 0,  wxALIGN_LEFT, 5);
 
-    m_textFifos = new wxStaticText(this, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
-    sbSizer_fifo->Add(m_textFifos, 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL, 1);
-
+    // text lines with fifo counters
+    
     m_textPA1 = new wxStaticText(this, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
     sbSizer_fifo->Add(m_textPA1, 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL, 1);
     m_textPA2 = new wxStaticText(this, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
     sbSizer_fifo->Add(m_textPA2, 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL, 1);
+
+    m_textFifos = new wxStaticText(this, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize, wxALIGN_LEFT);
+    sbSizer_fifo->Add(m_textFifos, 0, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL, 1);
 
     bSizer30->Add(sbSizer_fifo,0, wxALIGN_CENTER_HORIZONTAL|wxALL|wxEXPAND, 3);
 
@@ -419,6 +458,14 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_ckbox_udp_enable->SetValue(wxGetApp().m_udp_enable);
         m_txt_udp_port->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_udp_port));
 
+        m_txtCtrlframesPerBuffer->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_framesPerBuffer));
+        m_txtCtrlFifoSize->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_fifoSize_ms));
+
+        m_ckboxTxRxThreadPriority->SetValue(wxGetApp().m_txRxThreadHighPriority);
+        m_ckboxTxRxDumpTiming->SetValue(g_dump_timing);
+        m_ckboxTxRxDumpFifoState->SetValue(g_dump_fifo_state);
+        m_ckboxFreeDVAPIVerbose->SetValue(g_freedv_verbose);
+       
 #ifdef __EXPERIMENTAL_UDP__
         m_ckbox_events->SetValue(wxGetApp().m_events);
         m_txt_spam_timer->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_events_spam_timer));
@@ -437,6 +484,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
 #endif
 
         m_ckboxFreeDV700txClip->SetValue(wxGetApp().m_FreeDV700txClip);
+        m_ckboxFreeDV700txBPF->SetValue(wxGetApp().m_FreeDV700txBPF);
         m_ckboxFreeDV700Combine->SetValue(wxGetApp().m_FreeDV700Combine);
         m_txtInterleave->SetValue(wxString::Format(wxT("%i"),wxGetApp().m_FreeDV700Interleave));
         m_ckboxFreeDV700ManualUnSync->SetValue(wxGetApp().m_FreeDV700ManualUnSync);
@@ -485,6 +533,19 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         m_txtAttnCarrier->GetValue().ToLong(&attn_carrier);
         wxGetApp().m_attn_carrier = (int)attn_carrier;
 
+        long framesPerBuffer;
+        m_txtCtrlframesPerBuffer->GetValue().ToLong(&framesPerBuffer);
+        wxGetApp().m_framesPerBuffer = (int)framesPerBuffer;
+
+        long FifoSize_ms;
+        m_txtCtrlFifoSize->GetValue().ToLong(&FifoSize_ms);
+        wxGetApp().m_fifoSize_ms = (int)FifoSize_ms;
+
+        wxGetApp().m_txRxThreadHighPriority = m_ckboxTxRxThreadPriority->GetValue();
+        g_dump_timing = m_ckboxTxRxDumpTiming->GetValue();
+        g_dump_fifo_state = m_ckboxTxRxDumpFifoState->GetValue();
+        g_freedv_verbose = m_ckboxFreeDVAPIVerbose->GetValue();
+
 #ifdef __EXPERIMENTAL_UDP__
         wxGetApp().m_events        = m_ckbox_events->GetValue();
         long spam_timer;
@@ -517,6 +578,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
         wxGetApp().m_udp_port       = (int)port;
 
         wxGetApp().m_FreeDV700txClip = m_ckboxFreeDV700txClip->GetValue();
+        wxGetApp().m_FreeDV700txBPF = m_ckboxFreeDV700txBPF->GetValue();
         wxGetApp().m_FreeDV700Combine = m_ckboxFreeDV700Combine->GetValue();
         long interleave;
         m_txtInterleave->GetValue().ToLong(&interleave);
@@ -553,6 +615,7 @@ void OptionsDlg::ExchangeData(int inout, bool storePersistent)
             pConfig->Write(wxT("/Events/spam_timer"), wxGetApp().m_events_spam_timer);
 
             pConfig->Write(wxT("/FreeDV700/txClip"), wxGetApp().m_FreeDV700txClip);
+            pConfig->Write(wxT("/FreeDV700/txBPF"), wxGetApp().m_FreeDV700txBPF);
             pConfig->Write(wxT("/FreeDV700/interleave"), wxGetApp().m_FreeDV700Interleave);
             pConfig->Write(wxT("/FreeDV700/manualUnSync"), wxGetApp().m_FreeDV700ManualUnSync);
 
@@ -712,22 +775,22 @@ void OptionsDlg::OnUDPTest(wxCommandEvent& event)
 
 
 void OptionsDlg::DisplayFifoPACounters() {
-    char fifo_counters[80];
+    char fifo_counters[256];
 
-    sprintf(fifo_counters, "fifos: infull1: %d ooutempty1: %d infull2: %d outempty2: %d", g_infifo1_full, g_outfifo1_empty, g_infifo2_full, g_outfifo2_empty);
+    sprintf(fifo_counters, "Fifos: infull1: %d outempty1: %d infull2: %d outempty2: %d", g_infifo1_full, g_outfifo1_empty, g_infifo2_full, g_outfifo2_empty);
     wxString fifo_counters_string(fifo_counters);
     m_textFifos->SetLabel(fifo_counters_string);
 
-    char pa_counters1[80];
+    char pa_counters1[256];
 
     // input: underflow overflow output: underflow overflow
-    sprintf(pa_counters1, "PA1: inUnderflow: %d inOverflow: %d outUnderflow %d outOverflow %d", g_PAstatus1[0], g_PAstatus1[1], g_PAstatus1[2], g_PAstatus1[3]);
+    sprintf(pa_counters1, "PortAudio1: inUnderflow: %d inOverflow: %d outUnderflow %d outOverflow %d framesPerBuf: %d", g_PAstatus1[0], g_PAstatus1[1], g_PAstatus1[2], g_PAstatus1[3], g_PAframesPerBuffer1);
     wxString pa_counters1_string(pa_counters1); m_textPA1->SetLabel(pa_counters1_string);
 
-    char pa_counters2[80];
+    char pa_counters2[256];
 
     // input: underflow overflow output: underflow overflow
-    sprintf(pa_counters2, "PA2: inUnderflow: %d inOverflow: %d outUnderflow %d outOverflow %d", g_PAstatus2[0], g_PAstatus2[1], g_PAstatus2[2], g_PAstatus2[3]);
+    sprintf(pa_counters2, "PortAudio2: inUnderflow: %d inOverflow: %d outUnderflow %d outOverflow %d framesPerBuf: %d", g_PAstatus2[0], g_PAstatus2[1], g_PAstatus2[2], g_PAstatus2[3], g_PAframesPerBuffer2);
     wxString pa_counters2_string(pa_counters2);
     m_textPA2->SetLabel(pa_counters2_string);
 }
