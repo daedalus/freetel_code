@@ -1052,6 +1052,5 @@ const struct lsp_codebook newamp1vq_cb[] = {
     9,
     512,
     codes1
-  },
-  { 0, 0, 0, 0 }
+  }
 };

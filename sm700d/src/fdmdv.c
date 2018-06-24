@@ -56,7 +56,7 @@
 #include "os.h"
 #include "machdep.h"
 
-#if !defined(STM700D)
+#if !defined(STM700D)	/* We just need the resamplers at the bottom */
 
 static int sync_uw[] = {1,-1,1,-1,1,-1};
 

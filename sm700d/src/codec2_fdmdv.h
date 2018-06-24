@@ -101,9 +101,10 @@ void           fdmdv_16_to_8_short(short out8k[], short in16k[], int n);
 void           fdmdv_freq_shift(COMP rx_fdm_fcorr[], COMP rx_fdm[], float foff, COMP *foff_phase_rect, int nin);
 
 /* debug/development function(s) */
-
+#ifndef CORTEX_M4
 void fdmdv_dump_osc_mags(struct FDMDV *f);
 void fdmdv_simulate_channel(float *sig_pwr_av, COMP samples[], int nin, float target_snr);
+#endif
 
 #ifdef __cplusplus
 }

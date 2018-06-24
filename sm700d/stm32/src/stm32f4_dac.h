@@ -11,7 +11,7 @@
 
 #include <stdint.h>
 
-#define DAC_BUF_SZ   640
+#define DAC_BUF_SZ   320
 
 /* divisors for various sample rates */
 

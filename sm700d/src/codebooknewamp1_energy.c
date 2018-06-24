@@ -34,6 +34,5 @@ const struct lsp_codebook newamp1_energy_cb[] = {
     4,
     16,
     codes0
-  },
-  { 0, 0, 0, 0 }
+  }
 };

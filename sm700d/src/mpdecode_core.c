@@ -10,6 +10,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+
 #include "mpdecode_core.h"
 
 #define QPSK_CONSTELLATION_SIZE 4
@@ -519,11 +520,10 @@ void MinSum(		 int	  BitErrors[],
       for (j=0;j<v_nodes[i].degree;j++) {
 	temp_sum = Qi - c_nodes[ v_nodes[i].index[j] ].message[ v_nodes[i].socket[j] ];
 				
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
+#ifdef STM700D
+	v_nodes[i].message[j] = fabsf( temp_sum )*q_scale_factor;
+#else
 	v_nodes[i].message[j] = fabs( temp_sum )*q_scale_factor;
-#pragma GCC diagnostic pop 
 #endif
 
 	if (temp_sum > 0)
@@ -760,11 +760,10 @@ void sd_to_llr(double llr[], double sd[], int n) {
     sum = 0.0;
     for(i=0; i<n; i++)
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
+#ifdef STM700D
+        sum += fabsf(sd[i]);
+#else
         sum += fabs(sd[i]);
-#pragma GCC diagnostic pop
 #endif
 
     mean = sum/n;

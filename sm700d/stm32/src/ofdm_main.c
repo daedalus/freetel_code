@@ -842,8 +842,8 @@ int main() {
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
 
     /* Set up ADCs/DACs */
-    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ * 4);		/* 640 * 4   */
-    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ * 4);		/* 640 * 4   */
+    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ * 4);		/* 320 * 4   */
+    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ * 4);		/* 320 * 4   */
 
     if ((f = freedv_open(FREEDV_MODE_700D)) == NULL) {
         ColorfulRingOfDeath(5);		/* you can read this value under GDB */
@@ -916,7 +916,7 @@ int main() {
     if (load_prefs() < 0) {
         /* Fail!  Load defaults. */
         memset(&prefs, 0, sizeof(prefs));
-        prefs.op_mode = DIGITAL;
+        prefs.op_mode = ANALOG;
         prefs.menu_vol = 2;
         prefs.menu_speed = 60;  /* 20 WPM */
         prefs.menu_freq = 800;

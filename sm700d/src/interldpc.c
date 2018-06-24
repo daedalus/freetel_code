@@ -125,28 +125,32 @@ void interleaver_sync_state_machine(struct OFDM *ofdm,
     char next_sync_state_interleaver[OFDM_STATE_STR];
     
     strcpy(next_sync_state_interleaver, ofdm->sync_state_interleaver);
+
     if ((strcmp(ofdm->sync_state_interleaver,"search") == 0) && (ofdm->frame_count >= (interleave_frames-1))) {
         symbols_to_llrs(llr, codeword_symbols_de, codeword_amps_de, EsNo, ofdm->mean_amp, coded_syms_per_frame);               
+
         iter[0] =  run_ldpc_decoder(ldpc, out_char, llr, parityCheckCount);
         Nerrs_coded[0] = data_bits_per_frame - parityCheckCount[0];
+
         //for(i=0; i<20; i++)
         //    fprintf(stderr,"%d ", out_char[i]);
         //fprintf(stderr,"\n");
         //fprintf(stderr, "     iter: %d pcc: %d Nerrs: %d\n", iter[0], parityCheckCount[0], Nerrs_coded[0]);
+
         if ((Nerrs_coded[0] == 0) || (interleave_frames == 1)) {
             /* sucessful decode! */
             strcpy(next_sync_state_interleaver, "synced");
             ofdm->frame_count_interleaver = interleave_frames;
         }
     }
+
     strcpy(ofdm->sync_state_interleaver, next_sync_state_interleaver);
 }
 
 
 /* measure uncoded (raw) bit errors over interleaver frame */
 
-int count_uncoded_errors(struct LDPC *ldpc, int Nerrs_raw[], int interleave_frames, COMP codeword_symbols_de[])
-{
+int count_uncoded_errors(struct LDPC *ldpc, int Nerrs_raw[], int interleave_frames, COMP codeword_symbols_de[]) {
     int i,j,Nerrs,Terrs;
 
     int coded_syms_per_frame = ldpc->coded_syms_per_frame;
@@ -164,7 +168,9 @@ int count_uncoded_errors(struct LDPC *ldpc, int Nerrs_raw[], int interleave_fram
             rx_bits_raw[OFDM_BPS*i]   = bits[1];
             rx_bits_raw[OFDM_BPS*i+1] = bits[0];
         }
+
         Nerrs = 0;
+
         for(i=0; i<coded_bits_per_frame; i++) {
             //fprintf(stderr, "%d %d %d\n", i, test_codeword[i], rx_bits_raw[i]);
             if (test_codeword[i] != rx_bits_raw[i]) {
@@ -188,6 +194,7 @@ int count_errors(int tx_bits[], char rx_bits[], int n) {
             Nerrs++;
         }
     }
+
     return Nerrs;
 }
 
@@ -195,8 +202,7 @@ int count_errors(int tx_bits[], char rx_bits[], int n) {
 #ifdef NOT_USED
 /* UW never changes so we can pre-load tx_symbols with modulated UW */
 
-void build_modulated_uw(struct OFDM *ofdm, complex float tx_symbols[], uint8_t txt_bits[])
-{
+void build_modulated_uw(struct OFDM *ofdm, complex float tx_symbols[], uint8_t txt_bits[]) {
     int  uw_txt_bits[OFDM_NUWBITS+OFDM_NTXTBITS];
     COMP uw_txt_syms[(OFDM_NUWBITS+OFDM_NTXTBITS)/OFDM_BPS];
     int i,j;
@@ -225,8 +231,7 @@ void build_modulated_uw(struct OFDM *ofdm, complex float tx_symbols[], uint8_t t
    basis 
 */
 
-void ofdm_ldpc_interleave_tx(struct OFDM *ofdm, struct LDPC *ldpc, complex float tx_sams[], uint8_t tx_bits[], uint8_t txt_bits[], int interleave_frames)
-{
+void ofdm_ldpc_interleave_tx(struct OFDM *ofdm, struct LDPC *ldpc, complex float tx_sams[], uint8_t tx_bits[], uint8_t txt_bits[], int interleave_frames) {
     int coded_syms_per_frame = ldpc->coded_syms_per_frame;
     int coded_bits_per_frame = ldpc->coded_bits_per_frame;
     int data_bits_per_frame = ldpc->data_bits_per_frame;
