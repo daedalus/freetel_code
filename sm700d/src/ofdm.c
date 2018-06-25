@@ -354,12 +354,7 @@ static int est_timing(struct OFDM *ofdm, complex float *rx, int length) {
     ofdm->timing_valid = timing_mx > OFDM_TIMING_MX_THRESH;
 
     if (ofdm->verbose > 1) {
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
-        fprintf(stderr, "  av_level: %f  max: %f timing_est: %d timing_valid: %d\n", av_level, ofdm->timing_mx, timing_est, ofdm->timing_valid);
-#pragma GCC diagnostic pop
-#endif
+        fprintf(stderr, "  av_level: %f  max: %f timing_est: %d timing_valid: %d\n", (double) av_level, (double) ofdm->timing_mx, timing_est, ofdm->timing_valid);
     }
     
     return timing_est;
@@ -424,12 +419,7 @@ static int est_timing(struct OFDM *ofdm, complex float *rx, int length) {
     foff_est = Fs1 * cargf( ofdm->foff_metric + 1E-12f) / TAU;
 
     if (ofdm->verbose > 1) {
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdouble-promotion"
-        fprintf(stderr, "  foff_metric: %f %f foff_est: %f\n", crealf(ofdm->foff_metric), cimagf(ofdm->foff_metric), foff_est);
-#pragma GCC diagnostic pop
-#endif
+        fprintf(stderr, "  foff_metric: %f %f foff_est: %f\n", creal(ofdm->foff_metric), cimag(ofdm->foff_metric), (double) foff_est);
     }
     
     return foff_est;
