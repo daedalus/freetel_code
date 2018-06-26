@@ -27,6 +27,7 @@ DSPLIB          = $(PERIPHLIBDIR)/Libraries/CMSIS/DSP_Lib
 
 CFLAGS		+= -DUSE_STDPERIPH_DRIVER -I$(CMSIS)/Include -I$(CMSIS)/Device/ST/STM32F4xx/Include
 CFLAGS		+= -I$(STM32F4LIB)/inc -DARM_MATH_CM4 -specs=nosys.specs
+CFLAGS          += -I../src -Isrc
 
 STM32F4LIB_SRCS=\
 $(STM32F4LIB)/src/misc.c \
@@ -87,28 +88,19 @@ $(CODEC2_SRC)/postfilter.c \
 $(CODEC2_SRC)/quantise.c \
 $(CODEC2_SRC)/sine.c
 
-CFLAGS += -I../src -Isrc
+TST_OFDM_MOD_SRC=../src
+TST_OFDM_MOD_SRCS=\
+$(TST_OFDM_MOD_SRC)/tst_ofdm_mod.c \
+$(TST_OFDM_MOD_SRC)/filter.c \
+$(TST_OFDM_MOD_SRC)/ofdm.c 
 
-# ---------------------------------------------------------------------------
+TST_OFDM_MOD_STM_SRC=src
+TST_OFDM_MOD_STM_SRCS=\
+$(TST_OFDM_MOD_STM_SRC)/stm32f4_machdep.c \
+$(TST_OFDM_MOD_STM_SRC)/gdb_stdio.c \
+$(TST_OFDM_MOD_STM_SRC)/system_stm32f4xx.c
 
-# Libraries to link
-
-LIBS = -g -lm
-
-all: libstm32f4.a ofdm.bin
-
-libstm32f4.a: $(CMSIS_OBJS) $(STM32F4LIB_OBJS)
-	find $(PERIPHLIBDIR) -type f -name '*.o' -exec $(AR) crs libstm32f4.a {} ";"
-
-# Rule for building .bin files from a .elf
-%.bin: %.elf
-	$(OBJCOPY) -O binary $< $@
-
-# Rule for programming the modem hardware
-%.pgm: %.bin
-	$(SUDO) dfu-util -d 0483:df11 -c 1 -i 0 -a 0 -s 0x08000000 -D $<
-
-# ---------------------------------------------------------------------------
+TST_OFDM_MOD_OBJS = $(TST_OFDM_MOD_SRCS:.c=.o) $(TST_OFDM_MOD_STM_SRCS:.c=.o)
 
 OFDM_SRC=src
 OFDM_SRCS=\
@@ -131,6 +123,28 @@ OFDM_ASM_OBJS = $(OFDM_ASM:.s=.o)
 OFDM_SRCS += $(CODEC2_SRCS)
 OFDM_OBJS = $(OFDM_SRCS:.c=.o)
 
+# ---------------------------------------------------------------------------
+
+# Libraries to link
+
+LIBS = -g -lm
+
+all: libstm32f4.a ofdm.bin tst_ofdm_mod.elf
+
+libstm32f4.a: $(CMSIS_OBJS) $(STM32F4LIB_OBJS)
+	find $(PERIPHLIBDIR) -type f -name '*.o' -exec $(AR) crs libstm32f4.a {} ";"
+
+%.bin: %.elf
+	$(OBJCOPY) -O binary $< $@
+
+%.profile.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -DPROFILE -c -o $@ $<
+
+%.pgm: %.bin
+	$(SUDO) dfu-util -d 0483:df11 -c 1 -i 0 -a 0 -s 0x08000000 -D $<
+
+# ---------------------------------------------------------------------------
+
 .c.o:
 	$(CC) $(CFLAGS)  $^ -c -o $@
 
@@ -139,6 +153,9 @@ OFDM_OBJS = $(OFDM_SRCS:.c=.o)
 
 ofdm.elf: $(OFDM_OBJS) $(OFDM_ASM_OBJS) libstm32f4.a
 	$(CC) $(CFLAGS) -O3 $^ -o $@ $(LIBS)
+
+tst_ofdm_mod.elf: $(TST_OFDM_MOD_OBJS) $(OFDM_ASM_OBJS) libstm32f4.a
+	$(CC) $(CFLAGS) -DPROFILE $^ -o $@ $(LIBS)
 
 # ---------------------------------------------------------------------------
 
