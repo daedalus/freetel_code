@@ -72,8 +72,7 @@ int fifo_write(struct FIFO *fifo, short data[], int n) {
 
     if (n > fifo_free(fifo)) {
 	return -1;
-    }
-    else {
+    } else {
 
 	/* This could be made more efficient with block copies
 	   using memcpy */
@@ -84,6 +83,7 @@ int fifo_write(struct FIFO *fifo, short data[], int n) {
 	    if (pin == (fifo->buf + fifo->nshort))
 		pin = fifo->buf;
 	}
+
 	fifo->pin = pin;
     }
 
@@ -101,8 +101,7 @@ int fifo_read(struct FIFO *fifo, short data[], int n)
 
     if (n > fifo_used(fifo)) {
 	return -1;
-    }
-    else {
+    } else {
 
 	/* This could be made more efficient with block copies
 	   using memcpy */
@@ -113,6 +112,7 @@ int fifo_read(struct FIFO *fifo, short data[], int n)
 	    if (pout == (fifo->buf + fifo->nshort))
 		pout = fifo->buf;
 	}
+
 	fifo->pout = pout;
     }
 

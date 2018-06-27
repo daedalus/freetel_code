@@ -68,6 +68,7 @@ $(CODEC2_SRC)/codebooknewamp1.c \
 $(CODEC2_SRC)/codebooknewamp1_energy.c \
 $(CODEC2_SRC)/codec2.c \
 $(CODEC2_SRC)/fdmdv.c \
+$(CODEC2_SRC)/cohpsk.c \
 $(CODEC2_SRC)/ofdm.c \
 $(CODEC2_SRC)/filter.c \
 $(CODEC2_SRC)/interldpc.c \

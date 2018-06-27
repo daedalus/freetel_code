@@ -150,7 +150,8 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
         f->sz_error_pattern = fdmdv_error_pattern_size(f->fdmdv);
     }
 #endif
-#if !defined(CORTEX_M4)
+
+#ifndef CORTEX_M4
     if ((mode == FREEDV_MODE_700) || (mode == FREEDV_MODE_700B) || (mode == FREEDV_MODE_700C)) {
         f->snr_squelch_thresh = 0.0;
         f->squelch_en = 0;
@@ -353,7 +354,6 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
     }
 #endif
 
-#if !defined(STM700D)
     /* Init test frame states */
     
     f->test_frames_diversity = 1;
@@ -363,7 +363,6 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
     f->total_bit_errors = 0;
     f->total_bits_coded = 0;
     f->total_bit_errors_coded = 0;
-#endif
 
     /* Init Codec 2 for this FreeDV mode ----------------------------------------------------*/
     
@@ -379,7 +378,7 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
 #if !defined(CORTEX_M4)
     if ((mode == FREEDV_MODE_1600) || (mode == FREEDV_MODE_2400A) || (mode == FREEDV_MODE_2400B)) {
 #endif
-#if !defined(STM700D)
+#if !defined(STM700D) /* this code gets added on 1600 Mode firmware but not OFDM firmware */
         f->n_speech_samples = codec2_samples_per_frame(f->codec2);
         f->n_codec_bits = codec2_bits_per_frame(f->codec2);
         nbit = f->n_codec_bits;
@@ -411,7 +410,7 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
 
         assert((f->ldpc->data_bits_per_frame % codec2_bits_per_frame(f->codec2)) == 0);
 
-        int Ncodec2frames = f->ldpc->data_bits_per_frame/codec2_bits_per_frame(f->codec2);
+        int Ncodec2frames = f->ldpc->data_bits_per_frame/codec2_bits_per_frame(f->codec2); /* 4 */
         f->n_speech_samples = Ncodec2frames*codec2_samples_per_frame(f->codec2);
         f->n_codec_bits = f->interleave_frames*Ncodec2frames*codec2_bits_per_frame(f->codec2);
         nbit = codec2_bits_per_frame(f->codec2);
@@ -455,7 +454,7 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
         f->ptFilter8000to7500 = NULL;
     }
 #endif
-#if !defined(STM700D)
+
     /* Varicode low bit rate text states */
     
     varicode_decode_init(&f->varicode_dec_states, 1);
@@ -466,7 +465,6 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
 	f->freedv_put_next_proto = NULL;
 	f->freedv_get_next_proto = NULL;
     f->total_bit_errors = 0;
-#endif
 
     return f;
 }
@@ -742,10 +740,8 @@ static void freedv_tx_fsk_data(struct freedv *f, short mod_out[]) {
 
 void freedv_tx(struct freedv *f, short mod_out[], short speech_in[]) {
     assert(f != NULL);
-#ifndef CORTEX_M4
     COMP tx_fdm[f->n_nom_modem_samples];
     int  i;
-#endif
 
     assert((f->mode == FREEDV_MODE_1600)  || (f->mode == FREEDV_MODE_700)   || 
            (f->mode == FREEDV_MODE_700B)  || (f->mode == FREEDV_MODE_700C)  ||
@@ -770,11 +766,9 @@ void freedv_tx(struct freedv *f, short mod_out[], short speech_in[]) {
     } else{
 #endif
 
-#if !defined(STM700D)
         freedv_comptx(f, tx_fdm, speech_in);
         for(i=0; i<f->n_nom_modem_samples; i++)
             mod_out[i] = tx_fdm[i].real;
-#endif
 
 #ifndef CORTEX_M4
     }

@@ -18,3 +18,10 @@ standard, and all bets are off. Which means also, that C11 is good also.
 Everything in the "src" directory should be maintained to the original, so only
 the changed files will be rolled back in to the main repository when the project
 is finished.
+
+Notes:
+
+Mode 700D OFDM uses four Vocoder Frames (4 * 28) or 112 bits. FEC is another 112 bits
+(LDPC). Thus, I have made the ADC/DAC buffers large enough to hold this.
+
+

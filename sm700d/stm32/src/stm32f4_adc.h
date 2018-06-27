@@ -11,7 +11,9 @@
 
 #include <stdint.h>
 
-#define ADC_BUF_SZ   320
+/* Mode 700D uses 4 Vocoder Frames */
+
+#define ADC_BUF_SZ   (320 * 4)
 
 /* divisors for various sample rates */
 

@@ -124,6 +124,7 @@ static uint32_t menuExit = 0;
 static uint8_t press_ack = 0;
 
 static bool save_settings = false;
+static bool mode_changed = false;
 
 static int16_t *adc16k;
 static int16_t *dac16k;
@@ -842,8 +843,8 @@ int main() {
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
 
     /* Set up ADCs/DACs */
-    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ * 4);		/* 320 * 4   */
-    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ * 4);		/* 320 * 4   */
+    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ);
+    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ);
 
     if ((f = freedv_open(FREEDV_MODE_700D)) == NULL) {
         ColorfulRingOfDeath(5);		/* you can read this value under GDB */
@@ -963,7 +964,7 @@ int main() {
         switch (core_state) {
             case STATE_RX:
                 {
-                    uint8_t mode_changed = 0;
+                    mode_changed = false;
 
                     if (!menuTicker) {
                         if (menuExit) {
@@ -998,14 +999,14 @@ int main() {
                         } else if (switch_released(&sw_select)) {
                             /* Shortcut: change current mode */
                             op_mode = (op_mode + 1) % MAX_MODES;
-                            mode_changed = 1;
+                            mode_changed = true;
                         } else if (switch_released(&sw_back)) {
                             /* Shortcut: change current mode */
                             op_mode = (op_mode - 1) % MAX_MODES;
-                            mode_changed = 1;
+                            mode_changed = true;
                         }
 
-                        if (mode_changed) {
+                        if (mode_changed == true) {
                             /* Announce the new mode */
                             if (op_mode == ANALOG) {
                                 morse_play(&morse_player, "ANA");

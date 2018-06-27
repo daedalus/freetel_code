@@ -48,6 +48,8 @@
 #include "rn_coh.h"
 #include "test_bits_coh.h"
 
+#ifndef CORTEX_M4 /* on the firmware we just need the clip algorithm below */
+
 static COMP qpsk_mod[] = {
     { 1.0, 0.0},
     { 0.0, 1.0},
@@ -727,7 +729,7 @@ void cohpsk_mod(struct COHPSK *coh, COMP tx_fdm[], int tx_bits[], int nbits)
                                     fdmdv->phase_tx, fdmdv->freq, &fdmdv->fbb_phase_tx, fdmdv->fbb_rect);
     }
 }
-
+#endif
 
 /*---------------------------------------------------------------------------*\
 
@@ -737,6 +739,8 @@ void cohpsk_mod(struct COHPSK *coh, COMP tx_fdm[], int tx_bits[], int nbits)
 
   Hard clips a cohpsk modulator signal to improve PAPR, CLIP threshold
   hard coded and will need to be changed if NC*ND does.
+
+  This is also used in the Mode 700D OFDM
 
 \*---------------------------------------------------------------------------*/
 
@@ -756,6 +760,7 @@ void cohpsk_clip(COMP tx_fdm[], float clip_thresh, int n)
     }
  }
 
+#ifndef CORTEX_M4
 /*---------------------------------------------------------------------------*\
 
   FUNCTION....: fdm_downconvert_coh
@@ -1387,4 +1392,5 @@ void cohpsk_set_carrier_ampl(struct COHPSK *coh, int c, float ampl) {
     coh->carrier_ampl[c] = ampl;
     fprintf(stderr, "cohpsk_set_carrier_ampl: %d %f\n", c, ampl);
 }
+#endif
 
