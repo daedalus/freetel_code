@@ -194,21 +194,6 @@ static const struct menu_item_t menu_root;	/* Menu item root */
 #define MENU_EVT_BACK   0x21    /* Go back one level */
 #define MENU_EVT_EXIT   0x30    /* Exit menu */
 
-/*
- * Software-mix two 16-bit samples.
- */
-static int16_t software_mix(int16_t a, int16_t b) {
-    int32_t s = a + b;
-
-    if (s < INT16_MIN)
-        return INT16_MIN;   /* Clip! */
-
-    if (s > INT16_MAX)
-        return INT16_MAX;   /* Clip! */
-
-    return (int16_t) s;
-}
-
 /* Compare current serial with oldest and newest */
 static void compare_prefs(int *const oldest, int *const newest, int idx)
 {
@@ -821,6 +806,21 @@ static void menu_ui_vol_cb(struct menu_t *const menu, uint32_t event) {
     }
 }
 
+/*
+ * Software-mix two 16-bit samples.
+ */
+static int16_t software_mix(int16_t a, int16_t b) {
+    int32_t s = a + b;
+
+    if (s < INT16_MIN)
+        return INT16_MIN;   /* Clip! */
+
+    if (s > INT16_MAX)
+        return INT16_MAX;   /* Clip! */
+
+    return (int16_t) s;
+}
+
 /*------------------------------------------- main -------------------------------*/
 
 int main() {
@@ -843,8 +843,8 @@ int main() {
     RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_CRC, ENABLE);
 
     /* Set up ADCs/DACs */
-    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ);
-    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ);
+    dac_open(DAC_FS_16KHZ, DAC_BUF_SZ * 4);
+    adc_open(ADC_FS_16KHZ, ADC_BUF_SZ * 4);
 
     if ((f = freedv_open(FREEDV_MODE_700D)) == NULL) {
         ColorfulRingOfDeath(5);		/* you can read this value under GDB */
@@ -854,9 +854,9 @@ int main() {
 
     spk_nsamples = 0;       /* Outgoing sample counter */
 
-    n_samples = freedv_get_n_speech_samples(f);
-    n_samples_16k = n_samples * 2;
- 
+    n_samples = 320;                               /* 320 Analog setting */
+    n_samples_16k = n_samples * 2;                 /* 640 Analog setting */
+
     adc16k = malloc((FDMDV_OS_TAPS_16K + n_samples_16k) * sizeof (int16_t));
     dac16k = malloc(n_samples_16k * sizeof(int16_t));
     adc8k = malloc(n_samples * sizeof (int16_t));
@@ -1010,10 +1010,49 @@ int main() {
                             /* Announce the new mode */
                             if (op_mode == ANALOG) {
                                 morse_play(&morse_player, "ANA");
+
+                                free(adc16k);
+                                free(dac16k);
+                                free(adc8k);
+                                free(dac8k);
+
+                                n_samples = 320;
+                                n_samples_16k = n_samples * 2;
+
+                                adc16k = malloc((FDMDV_OS_TAPS_16K + n_samples_16k) * sizeof (int16_t));
+                                dac16k = malloc(n_samples_16k * sizeof(int16_t));
+                                adc8k = malloc(n_samples * sizeof (int16_t));
+                                dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
                             } else if (op_mode == DIGITAL) {
                                 morse_play(&morse_player, "DIG");
+
+                                free(adc16k);
+                                free(dac16k);
+                                free(adc8k);
+                                free(dac8k);
+
+                                n_samples = freedv_get_n_speech_samples(f) * 4;    /* OFDM has 4 Vocoder Frames */
+                                n_samples_16k = n_samples * 2;
+
+                                adc16k = malloc((FDMDV_OS_TAPS_16K + n_samples_16k) * sizeof (int16_t));
+                                dac16k = malloc(n_samples_16k * sizeof(int16_t));
+                                adc8k = malloc(n_samples * sizeof (int16_t));
+                                dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
                             } else if (op_mode == TONE) {
                                 morse_play(&morse_player, "TONE");
+
+                                free(adc16k);
+                                free(dac16k);
+                                free(adc8k);
+                                free(dac8k);
+
+                                n_samples = 320;
+                                n_samples_16k = n_samples * 2;
+
+                                adc16k = malloc((FDMDV_OS_TAPS_16K + n_samples_16k) * sizeof (int16_t));
+                                dac16k = malloc(n_samples_16k * sizeof(int16_t));
+                                adc8k = malloc(n_samples * sizeof (int16_t));
+                                dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
                             }
 
                             sfx_play(&sfx_player, sound_click);
@@ -1154,7 +1193,7 @@ int main() {
 
                 rig_ptt(PTT_ON);
 
-                if (op_mode == ANALOG || op_mode == DIGITAL) {
+                if (op_mode == ANALOG) {
                     /* ADC2 is the microphone */
                     /* DAC1 is the modulator signal we send to radio tx */
 
@@ -1173,14 +1212,36 @@ int main() {
 
                         fdmdv_16_to_8_short(adc8k, &adc16k[FDMDV_OS_TAPS_16K], n_samples);
 
-                        if (op_mode == ANALOG) {
-                            for (i = 0; i < n_samples; i++)
-                                dac8k[FDMDV_OS_TAPS_8K+i] = adc8k[i];
-                        } else if (op_mode == DIGITAL) {
-                            freedv_tx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
-                        }
+                        for (i = 0; i < n_samples; i++)
+                            dac8k[FDMDV_OS_TAPS_8K+i] = adc8k[i];
 
                         fdmdv_8_to_16_short(dac16k, &dac8k[FDMDV_OS_TAPS_8K], n_samples);
+                        dac1_write(dac16k, n_samples_16k);
+                    }
+
+                    debug_3(LED_OFF);
+
+                } else if (op_mode == DIGITAL) {
+                    /* ADC2 is the microphone */
+                    /* DAC1 is the modulator signal we send to radio tx */
+
+                    debug_3(LED_ON);
+
+                    if (adc2_read(&adc16k[FDMDV_OS_TAPS_16K], n_samples_16k) == 0) {
+
+                        /* clipping indicator */
+                        led_err(LED_OFF);
+
+                        for (i = 0; i < n_samples_16k; i++) {
+                            if (abs(adc16k[FDMDV_OS_TAPS_16K+i]) > 28000) {
+                                led_err(LED_ON);
+                            }
+                        }
+
+                        fdmdv_16_to_8_short(adc8k, &adc16k[FDMDV_OS_TAPS_16K], n_samples);
+                        freedv_tx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
+                        fdmdv_8_to_16_short(dac16k, &dac8k[FDMDV_OS_TAPS_8K], n_samples);
+
                         dac1_write(dac16k, n_samples_16k);
                     }
 
@@ -1230,22 +1291,22 @@ int main() {
                         led_err(LED_OFF);
                    }
                 } else if (op_mode == DIGITAL) {
-                    int nin = freedv_nin(f);
+                    int nin = 1280; //freedv_nin(f);
                     int nout = nin;
 
-                    freedv_set_total_bit_errors(f, 0);
+                    //freedv_set_total_bit_errors(f, 0);
 
                     if (adc1_read(&adc16k[FDMDV_OS_TAPS_16K], nin) == 0) {
                         debug_3(LED_ON);
 
                         fdmdv_16_to_8_short(adc8k, &adc16k[FDMDV_OS_TAPS_16K], nin);
-                        nout = freedv_rx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
+                        nout = 640;//freedv_rx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
 
                         fdmdv_8_to_16_short(dac16k, &dac8k[FDMDV_OS_TAPS_8K], nout);
                         spk_nsamples = nout;
 
-                        led_sync(freedv_get_sync(f));
-                        led_err(freedv_get_total_bit_errors(f));
+                        //led_sync(freedv_get_sync(f));
+                        //led_err(freedv_get_total_bit_errors(f));
 
                         debug_3(LED_OFF);
                     }
