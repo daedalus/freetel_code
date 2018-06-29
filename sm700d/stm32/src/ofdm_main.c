@@ -1039,8 +1039,6 @@ int main() {
                                 adc8k = malloc(n_samples * sizeof (int16_t));
                                 dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
                             } else if (op_mode == TONE) {
-                                morse_play(&morse_player, "TONE");
-
                                 free(adc16k);
                                 free(dac16k);
                                 free(adc8k);
@@ -1053,6 +1051,8 @@ int main() {
                                 dac16k = malloc(n_samples_16k * sizeof(int16_t));
                                 adc8k = malloc(n_samples * sizeof (int16_t));
                                 dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
+
+                                morse_play(&morse_player, "TONE");
                             }
 
                             sfx_play(&sfx_player, sound_click);
