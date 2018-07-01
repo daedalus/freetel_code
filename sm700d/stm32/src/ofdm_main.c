@@ -5,9 +5,6 @@
  *
  * Licensed under GNU LGPL V2.1
  * See LICENSE file for information
- *
- * Modified to use the OFDM 700D Modem
- * Steve Sampson, K5OKC, June 2018
  */
 
 #include <stdio.h>
@@ -110,6 +107,10 @@
 #define DIGITAL    1
 #define TONE       2
 
+/* Menu data */
+
+static struct menu_t   menu;
+
 struct switch_t sw_select;  /* Switch driver for SELECT button */
 struct switch_t sw_back;    /* Switch driver for BACK button */
 struct switch_t sw_ptt;     /* Switch driver for PTT buttons */
@@ -162,6 +163,12 @@ void SysTick_Handler() {
 /*
  * User preferences
  */
+
+#define PREFS_IMG_NUM       (2)			/* Number of preference images kept */
+#define PREFS_IMG_BASE      (0)			/* Base ROM ID for preferences */
+#define PREFS_SERIAL_MIN    8			/* Minimum serial number */
+#define PREFS_SERIAL_MAX    UINT64_MAX		/* Maximum serial number */
+
 static struct prefs_t
 {
     uint64_t   serial;          /* Serial number */
@@ -173,14 +180,9 @@ static struct prefs_t
     uint8_t    op_mode;         /* Default operating mode */
 } prefs;
 
-static bool prefs_changed = false;		/* Preferences changed flag */
-
-#define PREFS_IMG_NUM       (2)			/* Number of preference images kept */
-#define PREFS_IMG_BASE      (0)			/* Base ROM ID for preferences */
-#define PREFS_SERIAL_MIN    8			/* Minimum serial number */
-#define PREFS_SERIAL_MAX    UINT64_MAX		/* Maximum serial number */
-
+static struct prefs_t image[PREFS_IMG_NUM];
 static uint64_t prefs_serial[PREFS_IMG_NUM];	/* Preference serial numbers, by slot */
+static bool prefs_changed = false;		/* Preferences changed flag */
 
 struct tone_gen_t tone_gen;
 struct sfx_player_t sfx_player;
@@ -195,6 +197,7 @@ static const struct menu_item_t menu_root;	/* Menu item root */
 #define MENU_EVT_EXIT   0x30    /* Exit menu */
 
 /* Compare current serial with oldest and newest */
+
 static void compare_prefs(int *const oldest, int *const newest, int idx)
 {
     if (newest && prefs_serial[idx]) {
@@ -216,6 +219,7 @@ static void compare_prefs(int *const oldest, int *const newest, int idx)
 }
 
 /* Find oldest and newest images */
+
 static void find_prefs(int *const oldest, int *const newest)
 {
     int i;
@@ -231,17 +235,16 @@ static void find_prefs(int *const oldest, int *const newest)
 }
 
 /* Load preferences from flash */
+
 static int load_prefs()
 {
-    struct prefs_t image[PREFS_IMG_NUM];
     int newest = -1;
     int i;
 
     /* Load all copies into RAM */
-    for (i = 0; i < PREFS_IMG_NUM; i++) {
-        int res = vrom_read(PREFS_IMG_BASE + i, 0, sizeof(image[i]), &image[i]);
 
-        if (res == sizeof(image[i])) {
+    for (i = 0; i < PREFS_IMG_NUM; i++) {
+        if (vrom_read(PREFS_IMG_BASE + i, 0, sizeof(image[i]), &image[i]) == sizeof(image[i])) {
             prefs_serial[i] = image[i].serial;
             compare_prefs(NULL, &newest, i);
         } else {
@@ -249,11 +252,15 @@ static int load_prefs()
         }
     }
 
-    if (newest < 0)
+    if (newest < 0) {
+
         /* No newest image was found */
-        return -ENOENT;
+
+        return -1;
+    }
 
     /* Load from the latest image */
+
     memcpy(&prefs, &image[newest], sizeof(prefs));
 
     return 0;
@@ -826,10 +833,7 @@ static int16_t software_mix(int16_t a, int16_t b) {
 int main() {
     struct freedv *f;
     int16_t *play_ptr;
-    int i, n_rem;
-
-    /* Menu data */
-    struct menu_t   menu;
+    int i, op_mode, len, core_state;
 
     /* Clear out menu state */
     memset(&menu, 0, sizeof(menu));
@@ -885,16 +889,16 @@ int main() {
         tone_reset(&tone_gen, 1200, 1000);
 
         while (switch_back() == 1) {
-            int dac_rem = dac2_free();
+            len = dac2_free();
 
-            if (dac_rem) {
-                if (dac_rem > n_samples_16k)
-                    dac_rem = n_samples_16k;
+            if (len) {
+                if (len > n_samples_16k)
+                    len = n_samples_16k;
 
-                for (i = 0; i < dac_rem; i++)
+                for (i = 0; i < len; i++)
                     dac16k[i] = tone_next(&tone_gen);
 
-                dac2_write(dac16k, dac_rem);
+                dac2_write(dac16k, len);
             }
 
             if (!menuLEDTicker) {
@@ -904,19 +908,24 @@ int main() {
         }
 
         /* Button released, do an EEPROM erase */
+
         for (i = 0; i < PREFS_IMG_NUM; i++)
             vrom_erase(i + PREFS_IMG_BASE);
+
+        led_sync(LED_OFF);
     }
 
-    led_sync(LED_OFF);
     tone_reset(&tone_gen, 0, 0);
     tot_reset(&tot);
 
     /* Try to load preferences from flash */
 
     if (load_prefs() < 0) {
-        /* Fail!  Load defaults. */
+
+        /* Fail, so load defaults */
+
         memset(&prefs, 0, sizeof(prefs));
+
         prefs.op_mode = ANALOG;
         prefs.menu_vol = 2;
         prefs.menu_speed = 60;  /* 20 WPM */
@@ -925,7 +934,10 @@ int main() {
         prefs.tot_warn_period = 15;
     }
 
-    int op_mode = prefs.op_mode;
+    op_mode = prefs.op_mode;
+    morse_player.freq = prefs.menu_freq;
+    morse_player.dit_time = prefs.menu_speed;
+    morse_player.msg = NULL;
 
     /* Set up time-out timer, 100msec ticks */
 
@@ -938,17 +950,13 @@ int main() {
     memset(&sw_back, 0, sizeof(sw_back));
     memset(&sw_ptt, 0, sizeof(sw_ptt));
 
-    morse_player.freq = prefs.menu_freq;
-    morse_player.dit_time = prefs.menu_speed;
-    morse_player.msg = NULL;
-
     /* play a start-up tune. */
 
     sfx_play(&sfx_player, sound_startup);
 
-    uint8_t core_state = STATE_RX;
+    core_state = STATE_RX;
 
-    while(1) {
+    while (1) {
         /* Read switch states */
 
         switch_update(&sw_select, switch_select());
@@ -968,24 +976,32 @@ int main() {
 
                     if (!menuTicker) {
                         if (menuExit) {
+
                             /* We've just exited a menu, wait for release of BACK */
+
                             if (switch_released(&sw_back))
                                 menuExit = 0;
                         } else if (switch_pressed(&sw_ptt)) {
+
                             /* Cancel any announcement if scheduled */
+
                             if (announceTicker && morse_player.msg) {
                                 announceTicker = 0;
                                 morse_play(&morse_player, NULL);
                             }
 
                             /* Start time-out timer if enabled */
+
                             if (prefs.tot_period)
                                 tot_start(&tot, prefs.tot_period*10, prefs.tot_warn_period*10);
 
                             /* Enter transmit state */
+
                             core_state = STATE_TX;
                         } else if (switch_pressed(&sw_select) > HOLD_DELAY) {
+
                             /* Enter the menu */
+
                             led_pwr(LED_ON);
                             led_sync(LED_OFF);
                             led_err(LED_OFF);
@@ -997,20 +1013,24 @@ int main() {
                             core_state = STATE_MENU;
                             prefs_changed = false;
                         } else if (switch_released(&sw_select)) {
+
                             /* Shortcut: change current mode */
+
                             op_mode = (op_mode + 1) % MAX_MODES;
                             mode_changed = true;
                         } else if (switch_released(&sw_back)) {
+
                             /* Shortcut: change current mode */
+
                             op_mode = (op_mode - 1) % MAX_MODES;
                             mode_changed = true;
                         }
 
                         if (mode_changed == true) {
-                            /* Announce the new mode */
-                            if (op_mode == ANALOG) {
-                                morse_play(&morse_player, "ANA");
 
+                            /* Announce the new mode */
+
+                            if (op_mode == ANALOG) {
                                 free(adc16k);
                                 free(dac16k);
                                 free(adc8k);
@@ -1023,7 +1043,12 @@ int main() {
                                 dac16k = malloc(n_samples_16k * sizeof(int16_t));
                                 adc8k = malloc(n_samples * sizeof (int16_t));
                                 dac8k = malloc((FDMDV_OS_TAPS_8K + n_samples) * sizeof (int16_t));
+
+                                morse_play(&morse_player, "ANA");
                             } else if (op_mode == DIGITAL) {
+
+                                /* play at smaller ADC/DAC size */
+
                                 morse_play(&morse_player, "DIG");
 
                                 free(adc16k);
@@ -1063,32 +1088,45 @@ int main() {
             case STATE_TX:
                 {
                     if (!switch_pressed(&sw_ptt)) {
+
                         /* PTT released, leave transmit mode */
+
                         tot_reset(&tot);
                         core_state = STATE_RX;
                     } else if (tot.event & TOT_EVT_TIMEOUT) {
+
                         /* Time-out reached */
+
                         sfx_play(&sfx_player, sound_death_march);
+
                         tot.event &= ~TOT_EVT_TIMEOUT;
                         core_state = STATE_RX_TOT;
                     } else if (tot.event & TOT_EVT_WARN_NEXT) {
+
                         /* Re-set warning flag */
+
                         tot.event &= ~TOT_EVT_WARN_NEXT;
+
                         /* Schedule a click tone */
+
                         sfx_play(&sfx_player, sound_click);
                     }
                 }
                 break;
             case STATE_RX_TOT:
                 if (switch_released(&sw_ptt)) {
+
                     /* PTT released, leave transmit mode */
+
                     tot_reset(&tot);
                     core_state = STATE_RX;
                 }
                 break;
             case STATE_MENU:
                 if (!menuTicker) {
+
                     /* We are in a menu */
+
                     press_ack = 0;
                     save_settings = false;
 
@@ -1118,13 +1156,14 @@ int main() {
                             menu_exec(&menu, MENU_EVT_PREV);
                             menuTicker = MENU_DELAY;
                         } else if (switch_released(&sw_ptt)) {
-                            while(menu.stack_depth > 0)
+                            while (menu.stack_depth > 0)
                                 menu_exec(&menu, MENU_EVT_EXIT);
                             
                             sfx_play(&sfx_player, sound_returned);
                         }
 
                         /* If exited, put the Power LED back */
+
                         if (!menu.stack_depth) {
                             menuLEDTicker = 0;
                             menuTicker = 0;
@@ -1136,7 +1175,6 @@ int main() {
 
                             if (save_settings == true) {
                                 int oldest = -1;
-                                int res;
 
                                 /* Copy the settings in */
                                 prefs.menu_freq = morse_player.freq;
@@ -1152,10 +1190,8 @@ int main() {
                                     oldest = 0; /* No current image */
 
                                 /* Write new settings over it */
-                                res = vrom_write(oldest + PREFS_IMG_BASE, 0,
-                                        sizeof(prefs), &prefs);
 
-                                if (res >= 0)
+                                if (vrom_write(oldest + PREFS_IMG_BASE, 0, sizeof(prefs), &prefs) >= 0)
                                     prefs_serial[oldest] = prefs.serial;
                             }
 
@@ -1256,15 +1292,17 @@ int main() {
                         tone_reset(&tone_gen, TONE_FREQ, UINT16_MAX);
                     }
 
-                    int len = dac1_free();
+                    len = dac1_free();
 
-                    if (len > n_samples_16k)
-                        len = n_samples_16k;
+                    if (len) {
+                        if (len > n_samples_16k)
+                            len = n_samples_16k;
 
-                    for(i=0; i<len; i++)
-                        dac16k[i] = tone_next(&tone_gen);
+                        for (i = 0; i < len; i++)
+                            dac16k[i] = tone_next(&tone_gen);
 
-                    dac1_write(dac16k, len);
+                        dac1_write(dac16k, len);
+                    }
                 }
                 break;
 
@@ -1291,22 +1329,22 @@ int main() {
                         led_err(LED_OFF);
                    }
                 } else if (op_mode == DIGITAL) {
-                    int nin = 1280; //freedv_nin(f);
+                    int nin = freedv_nin(f);
                     int nout = nin;
 
-                    //freedv_set_total_bit_errors(f, 0);
+                    freedv_set_total_bit_errors(f, 0);
 
                     if (adc1_read(&adc16k[FDMDV_OS_TAPS_16K], nin) == 0) {
                         debug_3(LED_ON);
 
                         fdmdv_16_to_8_short(adc8k, &adc16k[FDMDV_OS_TAPS_16K], nin);
-                        nout = 640;//freedv_rx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
+                        nout = freedv_rx(f, &dac8k[FDMDV_OS_TAPS_8K], adc8k);
 
                         fdmdv_8_to_16_short(dac16k, &dac8k[FDMDV_OS_TAPS_8K], nout);
                         spk_nsamples = nout;
 
-                        //led_sync(freedv_get_sync(f));
-                        //led_err(freedv_get_total_bit_errors(f));
+                        led_sync(freedv_get_sync(f));
+                        led_err(freedv_get_total_bit_errors(f));
 
                         debug_3(LED_OFF);
                     }
@@ -1323,47 +1361,53 @@ int main() {
             if (spk_nsamples == 0)
                 spk_nsamples = dac2_free();
 
-            /*
-             * There is audio to play on the external speaker.  If there
-             * is a sound or announcement, software-mix it into the outgoing
-             * buffer.
-             */
-            if (sfx_player.note) {
-                if (menu.stack_depth) {
-                    /* Exclusive */
-                    for (i = 0; i < spk_nsamples; i++)
-                        dac16k[i] = sfx_next(&sfx_player) >> prefs.menu_vol;
-                } else {
-                    /* Software mix */
-                    for (i = 0; i < spk_nsamples; i++)
-                        dac16k[i] = software_mix(dac16k[i], sfx_next(&sfx_player) >> prefs.menu_vol);
-                }
+            /* See if there is even any memory */
 
-                if (!sfx_player.note && morse_player.msg)
-                    announceTicker = ANNOUNCE_DELAY;
-            } else if (!announceTicker && morse_player.msg) {
-                if (menu.stack_depth) {
-                    for (i = 0; i < spk_nsamples; i++)
-                        dac16k[i] = morse_next(&morse_player) >> prefs.menu_vol;
-                } else {
-                    for (i = 0; i < spk_nsamples; i++)
-                        dac16k[i] = software_mix(dac16k[i], morse_next(&morse_player) >> prefs.menu_vol);
+            if (spk_nsamples != 0) {
+                /*
+                 * There is audio to play on the external speaker.  If there
+                 * is a sound or announcement, software-mix it into the outgoing
+                 * buffer.
+                 */
+                if (sfx_player.note) {
+                    if (menu.stack_depth) {
+                        /* Exclusive */
+                        for (i = 0; i < spk_nsamples; i++)
+                            dac16k[i] = sfx_next(&sfx_player) >> prefs.menu_vol;
+                    } else {
+                        /* Software mix */
+                        for (i = 0; i < spk_nsamples; i++)
+                            dac16k[i] = software_mix(dac16k[i], sfx_next(&sfx_player) >> prefs.menu_vol);
+                    }
+
+                    if (!sfx_player.note && morse_player.msg)
+                        announceTicker = ANNOUNCE_DELAY;
+                } else if (!announceTicker && morse_player.msg) {
+                    if (menu.stack_depth) {
+                        for (i = 0; i < spk_nsamples; i++)
+                            dac16k[i] = morse_next(&morse_player) >> prefs.menu_vol;
+                    } else {
+                        for (i = 0; i < spk_nsamples; i++)
+                            dac16k[i] = software_mix(dac16k[i], morse_next(&morse_player) >> prefs.menu_vol);
+                    }
                 }
             }
 
             while (spk_nsamples != 0) {
                 /* Get the number of samples to be played this time around */
 
-                n_rem = dac2_free();
+                len = dac2_free();
 
-                if (spk_nsamples < n_rem)
-                    n_rem = spk_nsamples;
+                if (len) {
+                    if (spk_nsamples < len)
+                        len = spk_nsamples;
 
-                /* Play the audio */
+                    /* Play the audio */
 
-                dac2_write(play_ptr, n_rem);
-                spk_nsamples -= n_rem;
-                play_ptr += n_rem;
+                    dac2_write(play_ptr, len);
+                    spk_nsamples -= len;
+                    play_ptr += len;
+                }
             }
 
             /* Clear out buffer */
