@@ -91,6 +91,14 @@ extern "C" {
 #define OFDM_NUWBITS              ((OFDM_NS-1)*OFDM_BPS - OFDM_NTXTBITS)
 
 #define OFDM_STATE_STR           16
+
+/* inexpensive magnitude - sans sqrt() */
+
+static inline float normf(float complex val) {
+    float realf = crealf(val);
+    float imagf = cimagf(val);
+    return realf * realf + imagf * imagf;
+}
     
 /* Dummy struct for now, will contain constant configuration for OFDM
    modem, not used by ofdm_create() at present */

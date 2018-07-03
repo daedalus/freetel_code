@@ -24,4 +24,7 @@ Notes:
 Mode 700D OFDM uses four Vocoder Frames (4 * 28) or 112 bits. FEC is another 112 bits
 (LDPC). Thus, I have made the ADC/DAC buffers large enough to hold this.
 
+OK, I deleted all the morse code menu stuff. Maybe we can add it back in when the
+OFDM is working. Right now it is causing debugging problems.
 
+OK, I got rid of 16K sample rate. Everything is 8K now.

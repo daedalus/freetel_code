@@ -67,7 +67,6 @@ CODEC2_SRCS=\
 $(CODEC2_SRC)/codebooknewamp1.c \
 $(CODEC2_SRC)/codebooknewamp1_energy.c \
 $(CODEC2_SRC)/codec2.c \
-$(CODEC2_SRC)/fdmdv.c \
 $(CODEC2_SRC)/cohpsk.c \
 $(CODEC2_SRC)/ofdm.c \
 $(CODEC2_SRC)/filter.c \
@@ -106,15 +105,8 @@ TST_OFDM_MOD_OBJS = $(TST_OFDM_MOD_SRCS:.c=.o) $(TST_OFDM_MOD_STM_SRCS:.c=.o)
 OFDM_SRC=src
 OFDM_SRCS=\
 $(OFDM_SRC)/ofdm_main.c \
-$(OFDM_SRC)/tone.c \
-$(OFDM_SRC)/sfx.c \
-$(OFDM_SRC)/sounds.c \
-$(OFDM_SRC)/morse.c \
-$(OFDM_SRC)/menu.c \
-$(OFDM_SRC)/tot.c \
 $(OFDM_SRC)/ofdm_leds_switches.c \
 $(OFDM_SRC)/system_stm32f4xx.c \
-$(OFDM_SRC)/stm32f4_vrom.c \
 $(OFDM_SRC)/stm32f4_dac.c \
 $(OFDM_SRC)/stm32f4_adc.c
 

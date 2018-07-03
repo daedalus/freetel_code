@@ -216,8 +216,7 @@ struct OFDM *ofdm_create(const struct OFDM_CONFIG *config) {
     float acc = 0.0f;
 
     for (i = 0; i < (OFDM_M + OFDM_NCP); i++) {
-        acc += crealf(ofdm->pilot_samples[i]) * crealf(ofdm->pilot_samples[i]) +
-               cimagf(ofdm->pilot_samples[i]) * cimagf(ofdm->pilot_samples[i]);
+        acc += normf(ofdm->pilot_samples[i]);
     }
 
     ofdm->timing_norm = (OFDM_M + OFDM_NCP) * acc;
@@ -320,7 +319,7 @@ static int est_timing(struct OFDM *ofdm, complex float *rx, int length) {
     float acc = 0.0f;
 
     for (i = 0; i < length; i++) {
-        acc += crealf(rx[i]) * crealf(rx[i]) + cimagf(rx[i]) * cimagf(rx[i]);
+        acc += normf(rx[i]);
     }
             
     float av_level = 2.0f * sqrtf(ofdm->timing_norm * acc / length) + 1E-12f;
@@ -1048,7 +1047,7 @@ void ofdm_demod(struct OFDM *ofdm, int *rx_bits, COMP *rxbuf_in) {
     complex float *rx_np = ofdm->rx_np;
 
     for (i = 0; i < (OFDM_ROWSPERFRAME * OFDM_NC); i++) {
-        sig_var += crealf(rx_np[i]) * crealf(rx_np[i]) + cimagf(rx_np[i]) * cimagf(rx_np[i]);
+        sig_var += normf(rx_np[i]);
     }
 
     sig_var /= (OFDM_ROWSPERFRAME * OFDM_NC);
