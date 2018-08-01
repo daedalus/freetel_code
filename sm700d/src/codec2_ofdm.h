@@ -42,11 +42,11 @@ extern "C" {
 
 /* Defines */
 
-#define OFDM_AMP_SCALE (2E5f * 1.1491 / 1.06f) /* use to scale to 16 bit short */
-#define OFDM_CLIP (32767.0f * 0.35f)           /* experimentally derived constant to reduce PAPR to about 8dB */
-#define OFDM_SYNC_UNSYNC 0                     /* force sync state machine to lose sync, and search for new sync */
-#define OFDM_SYNC_AUTO   1                     /* falls out of sync automatically */
-#define OFDM_SYNC_MANUAL 2                     /* fall out of sync only under operator control */
+#define OFDM_AMP_SCALE (2E5*1.1491/1.06)   /* use to scale to 16 bit short */
+#define OFDM_CLIP (32767*0.35)             /* experimentally derived constant to reduce PAPR to about 8dB */
+#define OFDM_SYNC_UNSYNC 0                 /* force sync state machine to lose sync, and search for new sync */
+#define OFDM_SYNC_AUTO   1                 /* falls out of sync automatically */
+#define OFDM_SYNC_MANUAL 2                 /* fall out of sync only under operator control */
     
 struct OFDM_CONFIG;
 struct OFDM;
@@ -68,7 +68,7 @@ void ofdm_sync_state_machine(struct OFDM *ofdm, int *rx_uw);
 int ofdm_get_nin(struct OFDM *);
 int ofdm_get_samples_per_frame(void);
 int ofdm_get_max_samples_per_frame(void);
-int ofdm_get_bits_per_frame(struct OFDM *);
+int ofdm_get_bits_per_frame();
 void ofdm_get_demod_stats(struct OFDM *ofdm, struct MODEM_STATS *stats);
 
 /* option setters */
