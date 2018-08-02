@@ -215,11 +215,12 @@ struct freedv *freedv_open_advanced(int mode, struct freedv_advanced *adv) {
         ofdm_config->state_str = 16;               /* state string length */
         ofdm_config->ftwindowwidth = 11;
 
+        f->ofdm = ofdm_create(ofdm_config);
+
         ofdm_bitsperframe = ofdm_get_bits_per_frame();
         ofdm_nuwbits = (ofdm_config->ns - 1) * ofdm_config->bps - ofdm_config->txtbits;
         ofdm_ntxtbits = ofdm_config->txtbits;
 
-        f->ofdm = ofdm_create(ofdm_config);
         f->ldpc = (struct LDPC*)malloc(sizeof(struct LDPC));
 
         if (f->ldpc == NULL) {
