@@ -44,8 +44,8 @@ COMP test_acc(COMP v[], int n) {
     COMP acc = {0.0,0.0};
     int i;
     for(i=0; i<n; i++) {
-        acc.real += round(v[i].real);
-        acc.imag += round(v[i].imag);
+        acc.real += roundf(v[i].real);
+        acc.imag += roundf(v[i].imag);
         //fprintf(stderr, "%d %10f %10f %10f %10f\n", i, round(v[i].real), round(v[i].imag), acc.real, acc.imag);
     }
     return acc;
