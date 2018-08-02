@@ -36,6 +36,12 @@
 #include "ofdm_internal.h"
 #include "test_bits_ofdm.h"
 
+static struct OFDM_CONFIG *ofdm_config;
+
+static int ofdm_bitsperframe;
+static int ofdm_nuwbits;
+static int ofdm_ntxtbits;
+
 int main(int argc, char *argv[])
 {
     struct OFDM  *ofdm;
@@ -47,44 +53,72 @@ int main(int argc, char *argv[])
 	exit(1);
     }
 
-    if (strcmp(argv[1], "-") == 0) fout = stdout;
+    if (strcmp(argv[1], "-") == 0)
+        fout = stdout;
     else if ( (fout = fopen(argv[1],"wb")) == NULL ) {
 	fprintf(stderr, "Error opening output file: %s: %s.\n",
          argv[1], strerror(errno));
 	exit(1);
     }
 
-    ofdm = ofdm_create(NULL);
-    assert(ofdm != NULL);
-    int Nbitsperframe = ofdm_get_bits_per_frame(ofdm);
-    char  tx_bits_char[Nbitsperframe];
-    ofdm_destroy(ofdm);
+    if ((ofdm_config = (struct OFDM_CONFIG *) malloc(sizeof (struct OFDM_CONFIG))) == NULL) {
+	printf("Out of Memory");
+	exit(1);
+    }
 
-    for(i=0; i<Nbitsperframe; i++) {
+    ofdm_config->centre = 1500.0;              /* Centre Audio Frequency */
+    ofdm_config->fs = 8000.0;                  /* Sample Frequency */
+    ofdm_config->ts = 0.018;                   /* symbol duration */
+    ofdm_config->rs = (1.0 / ofdm_config->ts); /* Symbol Rate */
+    ofdm_config->nc = 17;                      /* Number of carriers */
+    ofdm_config->tcp = .002;                   /* Cyclic Prefix duration */
+    ofdm_config->ns = 8;                       /* Number of Symbol frames */
+    ofdm_config->ofdm_timing_mx_thresh = 0.30;
+    ofdm_config->bps = 2;                      /* Bits per Symbol */
+    ofdm_config->txtbits = 4;                  /* number of auxiliary data bits */
+    ofdm_config->state_str = 16;               /* state string length */
+    ofdm_config->ftwindowwidth = 11;
+
+    ofdm = ofdm_create(ofdm_config);
+    assert(ofdm != NULL);
+
+    ofdm_bitsperframe = ofdm_get_bits_per_frame();
+    ofdm_nuwbits = (ofdm_config->ns - 1) * ofdm_config->bps - ofdm_config->txtbits;
+    ofdm_ntxtbits = ofdm_config->txtbits;
+
+    char  tx_bits_char[ofdm_bitsperframe];
+
+
+    for(i=0; i<ofdm_bitsperframe; i++) {
         tx_bits_char[i] = test_bits_ofdm[i];
     }
 
     if (strcmp(argv[2], "-f") == 0) {
         Nframes = atoi(argv[3]);
     } else {
-        int Nsec, Nrows;
-        Nsec = atoi(argv[2]);
-        Nrows = (int)(Nsec*OFDM_RS);
-        Nframes = floor((Nrows-1)/OFDM_NS);
+        int Nsec = atoi(argv[2]);
+        int Nrows = (int)(Nsec * ofdm_config->rs);
+        Nframes = floorf((Nrows-1)/ofdm_config->ns);
+        fprintf(stderr, "ofdm_bitsperframe: %d Nsec: %d Nrows: %d Nframes: %d\n", ofdm_bitsperframe, Nsec, Nrows, Nframes);
     }
 
 
     for(n=0; n<Nframes; n++) {
 
-	fwrite(tx_bits_char, sizeof(char), Nbitsperframe, fout);
+	fwrite(tx_bits_char, sizeof(char), ofdm_bitsperframe, fout);
 
 	/* if this is in a pipeline, we probably don't want the usual
 	   buffering to occur */
 
-        if (fout == stdout) fflush(stdout);
+        if (fout == stdout)
+            fflush(stdout);
     }
 
     fclose(fout);
 
+    ofdm_destroy(ofdm);
+    free(ofdm_config);
+
     return 0;
 }
+
