@@ -7,7 +7,7 @@ def sum_profiles(fin, frames):
     active = False
 
     for line in fin:
-        if   (not active): active = line.startswith("Start Profile Data")
+        if (not active): active = line.startswith("Start Profile Data")
         elif line.startswith("End Profile Data"): active = False
         else:
             words = line.strip().split()
@@ -16,10 +16,10 @@ def sum_profiles(fin, frames):
                 time_str = words[1]
                 time = float(time_str)
                 total_time += time
-                if (not part in data): data[part] = 0.0
+                if part not in data: data[part] = 0.0
                 data[part] += time
-            # end else 
-        # end for line
+                    # end else 
+            # end for line
 
     data_sorted = [(p, data[p]) for p in sorted(data, key=data.get, reverse=True)]
 

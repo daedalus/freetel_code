@@ -103,7 +103,7 @@ def update_plots():
 		new_fest2 = in_data['f2_est']
 		new_spec = in_data['samp_fft']
 	except Exception as e:
-		print("ERROR reading dict: %s" % e)
+		print(f"ERROR reading dict: {e}")
 
 	# Try reading in the other 2 tones.
 	try:
@@ -139,17 +139,15 @@ def update_plots():
 
 		#eye_plot.disableAutoRange()
 		eye_plot.clear()
-		col_index = 0
-		for line in eye_data:
+		for col_index, line in enumerate(eye_data):
 			eye_plot.plot(line,pen=(col_index,eye_data.shape[0]))
-			col_index += 1
 		#eye_plot.autoRange()
-		
+
 		#Quick autoranging for x-axis to allow for differing P and Ts values
 		if eye_xr != len(eye_data[0]) - 1:
 			eye_xr = len(eye_data[0]) - 1
 			eye_plot.setXRange(0,len(eye_data[0])-1)
-			
+
 	except Exception as e:
 		pass
 

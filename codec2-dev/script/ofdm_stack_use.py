@@ -9,6 +9,7 @@ Just for ofdm_stack at this point
 This script expects to be run in the .../build_linux/unittest directory!
 """
 
+
 COMP_DIR   = 'CMakeFiles/ofdm_stack.dir'
 EXE_FILE   = './ofdm_stack'
 
@@ -42,24 +43,24 @@ if ((cwd_path.name != 'unittest') and
 
 # Required files
 assert(pathlib.Path(COMP_DIR).exists())
-assert(pathlib.Path(COMP_DIR + '/ofdm_stack.c.su').exists())
-assert(pathlib.Path(COMP_DIR + '/__/src/ofdm.c.su').exists())
+assert pathlib.Path(f'{COMP_DIR}/ofdm_stack.c.su').exists()
+assert pathlib.Path(f'{COMP_DIR}/__/src/ofdm.c.su').exists()
 
 
 ##########################
 # If trace file not found, or option set, run command
 if ( not (pathlib.Path(args.trace_file).exists())):
-    print('Trace file "{}" not found, running program'.format(args.trace_file))
+    print(f'Trace file "{args.trace_file}" not found, running program')
     args.exec = True
 
-if (args.exec):
-    print('Running program: "{}"'.format(EXE_FILE))
+if args.exec:
+    print(f'Running program: "{EXE_FILE}"')
     assert(pathlib.Path(EXE_FILE))
     result = subprocess.run([EXE_FILE],
                              stdout=subprocess.PIPE,
                              stderr=subprocess.STDOUT)
     if (result.returncode != 0):
-        print('Error: traced program failed! Output:\n{}'.format(result.stdout))
+        print(f'Error: traced program failed! Output:\n{result.stdout}')
 assert(pathlib.Path(args.trace_file).exists())
 
 
@@ -94,14 +95,11 @@ stack = []  # List of tuples of (function names, cur_stack_depth)
 last_func = 'start'
 
 def walk_stack():
-    trace = ''
-    for entry in stack:
-        trace += entry[0] + ' '
-    return(trace)
+    return ''.join(f'{entry[0]} ' for entry in stack)
 
 # Open trace
 with open(args.trace_file, "r") as tf:
-    for line in tf.readlines():
+    for line in tf:
         #print('Line: "{}"'.format(line.strip()))
         words = line.split()
         # Note addr2line needs addr in hex!
@@ -112,10 +110,11 @@ with open(args.trace_file, "r") as tf:
                                 stdout=subprocess.PIPE)
             result.check_returncode()
             # function name is first line of stdout
-            if (result.stdout):
+            if result.stdout:
                 lines = result.stdout.decode().split('\n')
                 func = lines[0].strip()
-            else: sys.error('unknown function at address {}'.format(addr))
+            else:else
+                sys.error(f'unknown function at address {addr}')
 
             if (func != "??"):
 
@@ -138,7 +137,7 @@ with open(args.trace_file, "r") as tf:
 
                 # end if (func != "??")
 
-            # end if ('e')
+                    # end if ('e')
         elif (words[0] == 'x'):
             # Only pop functions we pushed
             if (func in funcs_used):
@@ -146,5 +145,5 @@ with open(args.trace_file, "r") as tf:
                 (last_func, cur_stack_depth) = stack.pop()
                 #print('pop:  "{}" = {}'.format(last_func, cur_stack_depth))
 
-print('Max Stack Depth = {}'.format(max_stack_depth))
-print('Max Stack at: {}'.format(max_stack_trace))
+print(f'Max Stack Depth = {max_stack_depth}')
+print(f'Max Stack at: {max_stack_trace}')

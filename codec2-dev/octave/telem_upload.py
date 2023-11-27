@@ -84,8 +84,7 @@ def telemetry_to_sentence(telemetry):
         telemetry['longitude'],telemetry['altitude'],telemetry['speed'],telemetry['sats'],telemetry['temp'],telemetry['batt_voltage'])
 
     checksum = hex(crc16_ccitt(sentence[2:]))[2:].upper().zfill(4)
-    output = sentence + "*" + checksum + "\n"
-    return output
+    return f"{sentence}*{checksum}" + "\n"
 
 # Habitat Upload Functions
 def habitat_upload_sentence(sentence, callsign="N0CALL"):
@@ -110,10 +109,10 @@ def habitat_upload_sentence(sentence, callsign="N0CALL"):
         c = httplib.HTTPConnection("habitat.habhub.org",timeout=4)
         c.request(
             "PUT",
-            "/habitat/_design/payload_telemetry/_update/add_listener/%s" % sha256(sentence_b64).hexdigest(),
-            json.dumps(data),  # BODY
-            {"Content-Type": "application/json"}  # HEADERS
-            )
+            f"/habitat/_design/payload_telemetry/_update/add_listener/{sha256(sentence_b64).hexdigest()}",
+            json.dumps(data),
+            {"Content-Type": "application/json"},
+        )
 
         response = c.getresponse()
         sys.exit(0)
@@ -134,12 +133,12 @@ print(raw_data)
 if raw_data.startswith("AX5ARG"):
     # Assume the data is a standard telemetry string and just upload it.
     # Append a Newline and checksum (if not alread there) to the end, and "$$"'s to the start.
-    if not '*' in raw_data:
+    if '*' not in raw_data:
         # Assume there is no checksum on the end of the string, and add one.
         checksum = hex(crc16_ccitt(raw_data))[2:].upper().zfill(4)
-        raw_data = raw_data + "*" + checksum
+        raw_data = f"{raw_data}*{checksum}"
     if raw_data[:-1] != '\n':
-        raw_data = "$$" + raw_data + '\n'
+        raw_data = f"$${raw_data}" + '\n'
 
     habitat_upload_sentence(raw_data, callsign = uploader_callsign)
 else:
@@ -152,6 +151,6 @@ else:
         sys.exit(1)
 
     sentence = telemetry_to_sentence(telem)
-    print("Uploading: %s"%(sentence))
+    print(f"Uploading: {sentence}")
     habitat_upload_sentence(sentence, callsign = uploader_callsign)
 

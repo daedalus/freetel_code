@@ -12,7 +12,7 @@ def sum_profiles(fin, frames):
             time_str = words[1]
             time = float(time_str)
             total_time += time
-            if (not part in data): data[part] = 0.0
+            if part not in data: data[part] = 0.0
             data[part] += time
 
     data_sorted = [(p, data[p]) for p in sorted(data, key=data.get, reverse=True)]

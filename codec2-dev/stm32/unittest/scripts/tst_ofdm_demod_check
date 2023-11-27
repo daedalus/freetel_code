@@ -38,47 +38,45 @@ def read_octave_text(f):
     if (args.verbose): print('read_octave_text()')
     data = {}
     for line in f:
-        if (line[0:8] == "# name: "):
-          var = line.split()[2]
-          if (args.verbose): print('  var "{}"'.format(var))
-          line = next(f)
-          if (line.startswith("# type: matrix")):
+        if line[:8] == "# name: ":
+            var = line.split()[2]
+            if args.verbose:
+                print(f'  var "{var}"')
             line = next(f)
-            rows = int(line.split()[2])
-            line = next(f)
-            cols = int(line.split()[2])
-            if (cols > 0):
-              data[var] = np.empty((rows, cols), np.float32)
-              # Read rows one at a time
-              for row in range(rows):
-                try:
-                  line = next(f)
-                  data[var][row] = np.fromstring(line, np.float32, cols, " ")
-                except:
-                  print("Error reading row {} of var {}".format(row, var))
-                  raise
+            if (line.startswith("# type: matrix")):
+                line = next(f)
+                rows = int(line.split()[2])
+                line = next(f)
+                cols = int(line.split()[2])
+                if (cols > 0):
+                    data[var] = np.empty((rows, cols), np.float32)
+                                  # Read rows one at a time
+                    for row in range(rows):
+                        try:
+                            line = next(f)
+                            data[var][row] = np.fromstring(line, np.float32, cols, " ")
+                        except:
+                            print(f"Error reading row {row} of var {var}")
+                            raise
 
-          elif (line.startswith("# type: complex matrix")):
-            line = next(f)
-            rows = int(line.split()[2])
-            line = next(f)
-            cols = int(line.split()[2])
-            if (cols > 0):
-              data[var] = np.empty((rows, cols), np.complex64)
-              # Read rows one at a time
-              for row in range(rows):
-                try:
-                  line = next(f)
-                  # " (r,i) (r,i) ..."
-                  col = 0
-                  for tpl in line.split():
-                    real, imag = tpl.strip("(,)").split(",")
-                    data[var][row][col] = float(real) + (1j * float(imag))
-                    col += 1
-                except:
-                  print("Error reading row {} of var {}".format(row, var))
-                  raise
-        # end for line in f
+            elif (line.startswith("# type: complex matrix")):
+                line = next(f)
+                rows = int(line.split()[2])
+                line = next(f)
+                cols = int(line.split()[2])
+                if (cols > 0):
+                    data[var] = np.empty((rows, cols), np.complex64)
+                                  # Read rows one at a time
+                    for row in range(rows):
+                        try:
+                            line = next(f)
+                            for col, tpl in enumerate(line.split()):
+                                real, imag = tpl.strip("(,)").split(",")
+                                data[var][row][col] = float(real) + (1j * float(imag))
+                        except:
+                            print(f"Error reading row {row} of var {var}")
+                            raise
+            # end for line in f
     return(data)
 
 
@@ -124,14 +122,11 @@ def write_syms_as_octave(syms, amps):
         cols = syms.shape[1]
         f.write("# name: payload_syms_log_stm32\n")
         f.write("# type: complex matrix\n")
-        f.write("# rows: {}\n".format(rows))
-        f.write("# columns: {}\n".format(cols))
+        f.write(f"# rows: {rows}\n")
+        f.write(f"# columns: {cols}\n")
         for row in range(rows):
             for col in range(cols):
-                f.write(" ({},{})".format(
-                    syms[row][col].real,
-                    syms[row][col].imag
-                    ))
+                f.write(f" ({syms[row][col].real},{syms[row][col].imag})")
             f.write("\n")
         # amps
         rows = amps.shape[0]
@@ -139,13 +134,11 @@ def write_syms_as_octave(syms, amps):
         f.write("\n")
         f.write("# name: payload_amps_log_stm32\n")
         f.write("# type: matrix\n")
-        f.write("# rows: {}\n".format(rows))
-        f.write("# columns: {}\n".format(cols))
+        f.write(f"# rows: {rows}\n")
+        f.write(f"# columns: {cols}\n")
         for row in range(rows):
             for col in range(cols):
-                f.write(" {}".format(
-                    amps[row][col]
-                    ))
+                f.write(f" {amps[row][col]}")
             f.write("\n")
     # end write_syms_as_octave()
 

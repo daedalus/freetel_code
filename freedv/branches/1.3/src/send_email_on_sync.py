@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     # Bind the socket to the port
     server_address = ('localhost', args.listen_port)
-    eprint("Starting up on %s port %s" % (server_address[0], server_address[1]))
+    eprint(f"Starting up on {server_address[0]} port {server_address[1]}")
     sock.bind(server_address)
 
     _last_email = 0
@@ -40,10 +40,10 @@ if __name__ == "__main__":
     while True:
         eprint('\nwaiting to receive message')
         data, address = sock.recvfrom(4096)
-        
-        eprint('received %s bytes from %s' % (len(data), address))
+
+        eprint(f'received {len(data)} bytes from {address}')
         eprint(data)
-        
+
         if data:
             # Check if we are allowed to send.
             _now = time.time()
@@ -53,14 +53,14 @@ if __name__ == "__main__":
                     server = smtplib.SMTP(args.smtp_server, args.smtp_port)
                     server.starttls()
                     server.login(args.email_addr, args.email_pass)
-             
+
                     msg = "FreeDV has sync"
                     server.sendmail(args.email_addr, args.email_addr, msg)
                     server.quit()
 
                 except Exception as e:
                     # Lazy exception handling...
-                    eprint("Error when sending e-mail - %s" % str(e))
+                    eprint(f"Error when sending e-mail - {str(e)}")
 
                 _last_email = time.time()
             else:

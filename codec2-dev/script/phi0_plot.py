@@ -12,11 +12,10 @@ import itertools
 import sys
 
 def impl_reference(x):
-    if (x< 9.08e-5 ): r = 10
-    else:
-        z = math.exp(x)
-        r = math.log( (z+1) / (z-1) )
-    return(r)
+    if (x< 9.08e-5 ):
+        return 10
+    z = math.exp(x)
+    return math.log( (z+1) / (z-1) )
 
 ####
 # Table T1
@@ -47,11 +46,7 @@ for i in range(1, 28):
     t1_tbl.append( (x, r) )
 
 def impl_t1(x):
-    if (x > 10): return(0)
-    else:
-        for t in t1_tbl:
-            if (x > t[0]): return(t[1])
-    return(10)
+    return 0 if (x > 10) else next((t[1] for t in t1_tbl if (x > t[0])), 10)
 
 
 
@@ -70,9 +65,9 @@ for i in range(len(ref_vals)):
     error = t1_vals[i] - ref_vals[i]
     errsum += error
     errsum2 += error * error
-print("Net error {}".format(errsum))
-print("avg error {}".format(errsum/len(ref_vals)))
-print("rms error {}".format(math.sqrt(errsum2/len(ref_vals))))
+print(f"Net error {errsum}")
+print(f"avg error {errsum / len(ref_vals)}")
+print(f"rms error {math.sqrt(errsum2 / len(ref_vals))}")
 
 plt.xscale('log')
 plt.plot(x_vals, ref_vals, 'g', x_vals, t1_vals, 'r')
